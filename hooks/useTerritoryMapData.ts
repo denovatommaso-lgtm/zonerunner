@@ -460,6 +460,26 @@ export function useTerritoryMapData(params: {
     }
   }, [territories.size, territoryRuns, recomputeDerived]);
 
+  // Web fallback: always rebuild merged territories from runs to keep web in sync.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (mode === 'community') return;
+    if (!territoryRuns.length) return;
+    try {
+      const terr = rebuildTerritoriesFromRuns(territoryRuns as any);
+      recomputeDerived(terr);
+    } catch {
+      // ignore
+    }
+  }, [mode, recomputeDerived, territoryRuns]);
+
+  // Ensure current user color is available even if profile fetch fails.
+  useEffect(() => {
+    if (mode !== 'personal') return;
+    if (!resolvedUserId) return;
+    setUserColors((prev) => (prev[resolvedUserId] ? prev : { ...prev, [resolvedUserId]: territoryColor }));
+  }, [mode, resolvedUserId, territoryColor]);
+
   // Ensure we have a color for every owner (personal mode).
   useEffect(() => {
     if (mode !== 'personal') return;
