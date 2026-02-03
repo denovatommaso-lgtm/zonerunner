@@ -105,6 +105,14 @@ export default function Index() {
     );
   }
 
+  if (isWeb && loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={{ color: '#e2e8f0' }}>Loading…</Text>
+      </View>
+    );
+  }
+
   if (loading) {
     return <Text style={{ color: 'white', padding: 20 }}>Loading…</Text>;
   }
