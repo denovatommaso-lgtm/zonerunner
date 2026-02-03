@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 
 let ExpoIonicons: any = null;
@@ -13,7 +13,27 @@ if (Platform.OS !== 'web' || typeof document !== 'undefined') {
 type Props = ExpoIonicons extends null ? Record<string, unknown> : React.ComponentProps<typeof ExpoIonicons>;
 
 function Ionicons(props: Props) {
-  if (!ExpoIonicons) return null;
+  const [ready, setReady] = useState(Platform.OS !== 'web');
+
+  useEffect(() => {
+    if (!ExpoIonicons || Platform.OS !== 'web') return;
+    let mounted = true;
+    const load = ExpoIonicons.loadFont?.();
+    if (load && typeof load.then === 'function') {
+      load
+        .then(() => {
+          if (mounted) setReady(true);
+        })
+        .catch(() => {});
+    } else {
+      setReady(true);
+    }
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!ExpoIonicons || !ready) return null;
   return <ExpoIonicons {...(props as any)} />;
 }
 
