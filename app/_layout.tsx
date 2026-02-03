@@ -1,10 +1,11 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import * as Font from 'expo-font';
+import React, { useEffect, useRef, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ModeProvider } from '../lib/modeContext';
 import { useGoogleAuth } from '../lib/auth';
-import { View, ActivityIndicator } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { useWatchRunIngestor } from '../hooks/useWatchRunIngestor';
 import { usePendingRunSync } from '../hooks/usePendingRunSync';
 import { useRankingTracker } from '../hooks/useRankingTracker';
@@ -14,6 +15,7 @@ import { flushQueueWhenOnline } from '../lib/offlineQueue';
 import { RunSaveService } from '../lib/runSaveService';
 
 export default function RootLayout() {
+  const [, setIconFontsReady] = useState(Platform.OS !== 'web');
   const { user, loading } = useGoogleAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -23,6 +25,28 @@ export default function RootLayout() {
   useWatchRunIngestor();
   usePendingRunSync(user?.uid);
   useRankingTracker(user?.uid);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    let isMounted = true;
+    (async () => {
+      try {
+        const ExpoIcons = require('@expo/vector-icons');
+        const MaterialIconsModule = require('@expo/vector-icons/MaterialIcons');
+        const MaterialIcons = MaterialIconsModule?.default ?? MaterialIconsModule;
+        await Font.loadAsync({
+          ...(ExpoIcons?.Ionicons?.font ?? {}),
+          ...(MaterialIcons?.font ?? {}),
+        });
+        if (isMounted) setIconFontsReady(true);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     perfLog({

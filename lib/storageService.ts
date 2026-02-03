@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from './firebaseConfig';
 import { perfStart } from './perfLogger';
@@ -41,6 +42,10 @@ export async function ensureRemoteUri(
   if (uri.startsWith('http')) {
     endPerf({ outcome: 'cached' });
     return uri;
+  }
+  if (Platform.OS === 'web' && !uri.startsWith('data:')) {
+    endPerf({ outcome: 'skip-web-local' });
+    return undefined;
   }
   try {
     const stampedPath = path.replace(/(\.[a-zA-Z]+)?$/, `-${Date.now()}$1`);
