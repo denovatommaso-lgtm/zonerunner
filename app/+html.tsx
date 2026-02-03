@@ -21,6 +21,15 @@ export default function RootHTML({ children }: RootHTMLProps) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="ZoneRunner" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <style>{`
+          html, body, #root {
+            height: 100%;
+          }
+          body {
+            margin: 0;
+            background: ${themeColor};
+          }
+        `}</style>
         <ScrollViewStyleReset />
       </head>
       <body>
