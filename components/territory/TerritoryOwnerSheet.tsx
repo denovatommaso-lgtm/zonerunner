@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StyledAvatar } from '../common/StyledAvatar';
 import { resolveLevelBorderStyleTier, resolveLevelBorderTier } from '../../lib/rewardSelectors';
 
@@ -35,6 +35,81 @@ export default function TerritoryOwnerSheet({
 }: Props) {
   const visible = !!selectedOwner;
 
+  const content = (
+    <Pressable style={styles.overlay} onPress={onClose}>
+      <Pressable style={styles.card} onPress={() => {}}>
+        <Text style={styles.title}>Owned by</Text>
+        <View style={styles.row}>
+          <StyledAvatar
+            uri={selectedOwner?.avatarUrl}
+            name={selectedOwner?.displayName ?? 'Runner'}
+            size={64}
+            tier={
+              selectedOwner?.levelBorderTier ??
+              resolveLevelBorderTier(selectedOwner?.level ?? 1, selectedOwner as any)
+            }
+            styleTier={
+              selectedOwner?.levelBorderStyleTier ??
+              resolveLevelBorderStyleTier(selectedOwner?.level ?? 1, selectedOwner as any)
+            }
+          />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{selectedOwner?.displayName ?? 'Runner'}</Text>
+            {selectedOwner?.ownerType === 'user' && selectedOwner?.username ? (
+              <Text style={styles.username}>@{selectedOwner.username}</Text>
+            ) : selectedOwner?.ownerType === 'group' ? (
+              <Text style={styles.username}>Group</Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.metaRow}>
+          <View style={styles.metaPill}>
+            <Text style={styles.metaLabel}>Area captured</Text>
+            <Text style={styles.metaValue}>
+              {(selectedOwner?.areaKm2 ?? 0).toFixed(2)} km²
+            </Text>
+          </View>
+          {typeof selectedOwner?.rank === 'number' ? (
+            <View style={styles.metaPill}>
+              <Text style={styles.metaLabel}>Rank</Text>
+              <Text style={styles.metaValue}>#{selectedOwner.rank}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {selectedOwner?.displayName === 'Unclaimed' ? (
+          <Text style={styles.unclaimed}>Unclaimed</Text>
+        ) : selectedOwner?.ownerType === 'user' ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && { opacity: 0.85 },
+            ]}
+            onPress={onViewProfile}
+          >
+            <Text style={styles.primaryButtonText}>View Profile</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [
+              styles.altButton,
+              pressed && { opacity: 0.85 },
+            ]}
+            onPress={onViewGroupLeaderboard}
+          >
+            <Text style={styles.altButtonText}>View Group Leaderboard</Text>
+          </Pressable>
+        )}
+      </Pressable>
+    </Pressable>
+  );
+
+  if (Platform.OS === 'web') {
+    if (!visible) return null;
+    return <View style={styles.webOverlay}>{content}</View>;
+  }
+
   return (
     <Modal
       visible={visible}
@@ -44,73 +119,7 @@ export default function TerritoryOwnerSheet({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
-          <Text style={styles.title}>Owned by</Text>
-          <View style={styles.row}>
-            <StyledAvatar
-              uri={selectedOwner?.avatarUrl}
-              name={selectedOwner?.displayName ?? 'Runner'}
-              size={64}
-              tier={
-                selectedOwner?.levelBorderTier ??
-                resolveLevelBorderTier(selectedOwner?.level ?? 1, selectedOwner as any)
-              }
-              styleTier={
-                selectedOwner?.levelBorderStyleTier ??
-                resolveLevelBorderStyleTier(selectedOwner?.level ?? 1, selectedOwner as any)
-              }
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{selectedOwner?.displayName ?? 'Runner'}</Text>
-              {selectedOwner?.ownerType === 'user' && selectedOwner?.username ? (
-                <Text style={styles.username}>@{selectedOwner.username}</Text>
-              ) : selectedOwner?.ownerType === 'group' ? (
-                <Text style={styles.username}>Group</Text>
-              ) : null}
-            </View>
-          </View>
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaPill}>
-              <Text style={styles.metaLabel}>Area captured</Text>
-              <Text style={styles.metaValue}>
-                {(selectedOwner?.areaKm2 ?? 0).toFixed(2)} km²
-              </Text>
-            </View>
-            {typeof selectedOwner?.rank === 'number' ? (
-              <View style={styles.metaPill}>
-                <Text style={styles.metaLabel}>Rank</Text>
-                <Text style={styles.metaValue}>#{selectedOwner.rank}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {selectedOwner?.displayName === 'Unclaimed' ? (
-            <Text style={styles.unclaimed}>Unclaimed</Text>
-          ) : selectedOwner?.ownerType === 'user' ? (
-            <Pressable
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed && { opacity: 0.85 },
-              ]}
-              onPress={onViewProfile}
-            >
-              <Text style={styles.primaryButtonText}>View Profile</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              style={({ pressed }) => [
-                styles.altButton,
-                pressed && { opacity: 0.85 },
-              ]}
-              onPress={onViewGroupLeaderboard}
-            >
-              <Text style={styles.altButtonText}>View Group Leaderboard</Text>
-            </Pressable>
-          )}
-        </Pressable>
-      </Pressable>
+      {content}
     </Modal>
   );
 }
@@ -121,6 +130,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
     padding: 16,
+  },
+  webOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
   },
   card: {
     backgroundColor: '#0b1120',
