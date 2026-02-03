@@ -768,20 +768,6 @@ const {
     return featureCollection(features);
   }, [mapMode, ownerPolygons, pastRuns, userColors]);
 
-  const handleTerritoryPress = useCallback(
-    (payload: any) => {
-      const feature = payload?.features?.[0];
-      const props = feature?.properties ?? payload ?? {};
-      if (!props.ownerId || !props.ownerType || !props.territoryId) return;
-      openOwnerSheet({
-        ownerId: props.ownerId,
-        ownerType: props.ownerType as TerritoryOwnerType,
-        territoryId: props.territoryId as string,
-      });
-    },
-    [openOwnerSheet]
-  );
-
   const {
     selectedOwner,
     openOwnerSheet,
@@ -806,6 +792,20 @@ const {
     })),
     ownerLevels,
   });
+
+  const handleTerritoryPress = useCallback(
+    (payload: any) => {
+      const feature = payload?.features?.[0];
+      const props = feature?.properties ?? payload ?? {};
+      if (!props.ownerId || !props.ownerType || !props.territoryId) return;
+      openOwnerSheet({
+        ownerId: props.ownerId,
+        ownerType: props.ownerType as TerritoryOwnerType,
+        territoryId: props.territoryId as string,
+      });
+    },
+    [openOwnerSheet]
+  );
 
   const playersInArea = Math.max(
     1,
