@@ -1,8 +1,8 @@
-import Ionicons from '@/components/common/Ionicons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import TabIcon from '@/components/common/TabIcon';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -36,26 +36,23 @@ export default function TabLayout() {
         tabBarPressColor: '#1f2937',
         tabBarPressOpacity: 0.12,
         tabBarIcon: ({ color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap;
+          let iconName: 'home' | 'map' | 'trophy' | 'person' | 'time' | 'ellipse';
 
           if (route.name === 'home') {
-            // Home tab
-            iconName = 'home-outline';
+            iconName = 'home';
           } else if (route.name === 'index') {
-            // Map tab
-            iconName = 'map-outline';
+            iconName = 'map';
           } else if (route.name === 'leaderboard') {
-            iconName = 'trophy-outline';
+            iconName = 'trophy';
           } else if (route.name === 'profile') {
-            iconName = 'person-circle-outline';
+            iconName = 'person';
           } else if (route.name === 'history') {
-            // history is reachable via router, not shown as a tab
-            iconName = 'time-outline';
+            iconName = 'time';
           } else {
-            iconName = 'ellipse-outline';
+            iconName = 'ellipse';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return <TabIcon name={iconName} size={size} color={color} />;
         },
       })}
     >
