@@ -18,10 +18,11 @@ export default function TabLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         lazy: true,
+        tabBarShowLabel: true,
         tabBarStyle: {
           backgroundColor: '#0a0f1f', // slightly brighter navy for the bottom bar
           borderTopColor: '#151b2a',
-          height: barHeight,
+          height: barHeight + (Platform.OS === 'web' ? 6 : 0),
           paddingBottom: barPaddingBottom,
           paddingTop: barPaddingTop,
           ...(Platform.OS === 'web'
@@ -34,12 +35,13 @@ export default function TabLayout() {
             : null),
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          lineHeight: 14,
-          marginBottom: 2,
+          fontSize: 11,
+          lineHeight: 12,
+          marginBottom: 0,
+          paddingBottom: 2,
         },
         tabBarIconStyle: {
-          marginTop: 1,
+          marginTop: 0,
         },
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#777',

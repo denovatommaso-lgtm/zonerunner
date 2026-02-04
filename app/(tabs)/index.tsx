@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import {
   ActivityIndicator,
   Alert,
@@ -42,6 +43,8 @@ import {
   type LatLng,
 } from '../../lib/maps/geojson';
 import TerritoryMap from '../../components/maps/TerritoryMap';
+import { findColorByHex, findColorById, DEFAULT_TERRITORY_COLOR_ID } from '../../lib/territoryColors';
+import { rebuildTerritoriesFromRuns } from '../../lib/territoryEngine';
 
 type LocationSubscription = Awaited<
   ReturnType<typeof Location.watchPositionAsync>
@@ -192,10 +195,20 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+function normalizeTerritoryHex(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const byHex = findColorByHex(value);
+  if (byHex?.hex) return byHex.hex;
+  const byId = findColorById(value);
+  if (byId?.hex) return byId.hex;
+  return null;
+}
+
 // MapLibre view is loaded via lib/maplibre.ts to avoid web native module errors.
 
 export default function TerritoryMapScreen() {
   const { user } = useGoogleAuth();
+  const tabBarHeight = useBottomTabBarHeight();
   const [currentRoute, setCurrentRoute] = useState<LatLng[]>([]);
   const [runActive, setRunActive] = useState(false);
   const [showUserLocation, setShowUserLocation] = useState(false);
@@ -271,6 +284,7 @@ const {
     ownerPolygons,
     myTerritory,
     totalAreaKm2,
+    territoryRuns,
     groupInfoById,
     userProfileCache,
     refreshCommunityColors,
@@ -715,7 +729,11 @@ const {
   // Sync territory color with user profile
   useEffect(() => {
     if (user?.profile?.territoryColor) {
-      setTerritoryColor(user.profile.territoryColor);
+      const normalized =
+        normalizeTerritoryHex(user.profile.territoryColor) ??
+        findColorById(DEFAULT_TERRITORY_COLOR_ID)?.hex ??
+        '#1e90ff';
+      setTerritoryColor(normalized);
     }
   }, [user?.profile, user?.uid]);
 
@@ -745,28 +763,30 @@ const {
           });
         }
       );
-    } else {
-      pastRuns.forEach((run) => {
-        if (!run.route || run.route.length < 3) return;
-        const ownerType: TerritoryOwnerType = run.groupId || (run as any).mode === 'group' ? 'group' : 'user';
-        const ownerId =
-          ownerType === 'group'
-            ? run.groupId ?? run.userId ?? ''
-            : run.userId ?? '';
+    } else if (territoryRuns.length > 0 && mapMode !== 'community') {
+      // Web fallback: rebuild territories so overlaps subtract correctly.
+      const rebuilt = rebuildTerritoriesFromRuns(territoryRuns as any);
+      rebuilt.forEach((terr, ownerId) => {
+        if (!terr) return;
+        const rings = territoryToMapPolygons(terr);
+        if (!rings.length) return;
         const color = userColors[ownerId] ?? '#6b7280';
-        features.push(
-          polygonFeature(run.route, {
-            ownerId,
-            ownerType,
-            territoryId: `${ownerType}:${ownerId}:${run.id}`,
-            lineColor: color,
-            fillColor: hexToRgba(color, 0.22),
-          })
-        );
+        rings.forEach((ring, ringIdx) => {
+          if (ring.length < 3) return;
+          features.push(
+            polygonFeature(ring, {
+              ownerId,
+              ownerType: mapMode === 'group' ? 'group' : 'user',
+              territoryId: `rebuild:${ownerId}:${ringIdx}`,
+              lineColor: color,
+              fillColor: hexToRgba(color, 0.22),
+            })
+          );
+        });
       });
     }
     return featureCollection(features);
-  }, [mapMode, ownerPolygons, pastRuns, userColors]);
+  }, [mapMode, ownerPolygons, territoryRuns, userColors]);
 
   const {
     selectedOwner,
@@ -1049,7 +1069,7 @@ const {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 24 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1299,7 +1319,7 @@ const {
       />
 
       </ScrollView>
-      <View style={styles.modeMenuOverlay}>
+      <View style={[styles.modeMenuOverlay, { bottom: tabBarHeight + 6 }]}>
         <View style={styles.modeMenu}>
           {(['personal', 'group', 'community'] as const).map((m) => {
             const active = mapMode === m;

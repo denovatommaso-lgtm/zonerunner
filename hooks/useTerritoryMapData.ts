@@ -7,6 +7,7 @@ import { fetchRunsForContext } from '../lib/runContext';
 import { DeletedRunsStore } from '../lib/deletedRunsStore';
 import { PendingRunsStore } from '../lib/pendingRunsStore';
 import { rebuildTerritoriesFromRuns, territoryAreaKm2, territoryToMapPolygons, type TerritoryFeature } from '../lib/territoryEngine';
+import { DEFAULT_TERRITORY_COLOR_ID, findColorByHex, findColorById } from '../lib/territoryColors';
 import { getPrefetchedTerritory, preloadTerritoryData, setPrefetchedTerritoryRuns } from '../lib/territoryPrefetch';
 import { isRunAffectingGroupTerritory } from '../lib/utils/groupRunPermissions';
 import { getTerritoryState, subscribeTerritoryState } from '../lib/territoryState';
@@ -33,6 +34,16 @@ export type TerritoryMapRunSummary = {
 
 const COMMUNITY_OWNER_COLOR_CACHE_KEY = 'communityOwnerColors:v1';
 const COMMUNITY_OWNER_COLOR_BATCH_SIZE = 40;
+const FALLBACK_TERRITORY_HEX = findColorById(DEFAULT_TERRITORY_COLOR_ID)?.hex ?? '#1e90ff';
+
+function normalizeTerritoryHex(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const byHex = findColorByHex(value);
+  if (byHex?.hex) return byHex.hex;
+  const byId = findColorById(value);
+  if (byId?.hex) return byId.hex;
+  return null;
+}
 
 export function useTerritoryMapData(params: {
   userId?: string;
@@ -240,7 +251,8 @@ export function useTerritoryMapData(params: {
                 avatarUrl: profile.avatarUrl,
                 territoryColor: profile.territoryColor,
               });
-              setUserColors((prev) => ({ ...prev, [uid]: profile.territoryColor ?? fallbackColor }));
+              const normalized = normalizeTerritoryHex(profile.territoryColor) ?? fallbackColor;
+              setUserColors((prev) => ({ ...prev, [uid]: normalized }));
             }
           } catch {
             // ignore
@@ -282,8 +294,9 @@ export function useTerritoryMapData(params: {
         const nextColors: Record<string, string> = {};
         Object.entries(parsed).forEach(([uid, value]) => {
           if (typeof value === 'string' && value) {
-            nextColors[uid] = value;
-            userProfileCacheRef.current.set(uid, { territoryColor: value });
+            const normalized = normalizeTerritoryHex(value) ?? value;
+            nextColors[uid] = normalized;
+            userProfileCacheRef.current.set(uid, { territoryColor: normalized });
           }
         });
         if (!Object.keys(nextColors).length || cancelled) return;
@@ -477,7 +490,8 @@ export function useTerritoryMapData(params: {
   useEffect(() => {
     if (mode !== 'personal') return;
     if (!resolvedUserId) return;
-    setUserColors((prev) => (prev[resolvedUserId] ? prev : { ...prev, [resolvedUserId]: territoryColor }));
+    const normalized = normalizeTerritoryHex(territoryColor) ?? FALLBACK_TERRITORY_HEX;
+    setUserColors((prev) => (prev[resolvedUserId] ? prev : { ...prev, [resolvedUserId]: normalized }));
   }, [mode, resolvedUserId, territoryColor]);
 
   // Ensure we have a color for every owner (personal mode).
@@ -494,7 +508,7 @@ export function useTerritoryMapData(params: {
       ownerIds.forEach((id) => {
         const cached = userProfileCacheRef.current.get(id);
         if (cached?.territoryColor) {
-          nextColors[id] = cached.territoryColor;
+          nextColors[id] = normalizeTerritoryHex(cached.territoryColor) ?? cached.territoryColor;
         }
       });
 
@@ -510,7 +524,7 @@ export function useTerritoryMapData(params: {
               avatarUrl: profile.avatarUrl,
               territoryColor: profile.territoryColor,
             });
-            nextColors[uid] = profile.territoryColor;
+            nextColors[uid] = normalizeTerritoryHex(profile.territoryColor) ?? profile.territoryColor;
           }
         } catch {
           // ignore
@@ -536,17 +550,17 @@ export function useTerritoryMapData(params: {
       ownerIds.forEach((id) => {
         if (next[id]) return;
         if (resolvedUserId && id === resolvedUserId) {
-          next[id] = territoryColor;
+          next[id] = normalizeTerritoryHex(territoryColor) ?? territoryColor;
           return;
         }
         const cached = userProfileCacheRef.current.get(id);
         if (cached?.territoryColor) {
-          next[id] = cached.territoryColor;
+          next[id] = normalizeTerritoryHex(cached.territoryColor) ?? cached.territoryColor;
           return;
         }
         const cachedColor = communityOwnerColorCacheRef.current[id];
         if (cachedColor) {
-          next[id] = cachedColor;
+          next[id] = normalizeTerritoryHex(cachedColor) ?? cachedColor;
           return;
         }
         next[id] = colorForOwner(id);
@@ -579,7 +593,10 @@ export function useTerritoryMapData(params: {
     (async () => {
       const missingOrOutdated = ownerIds.filter((id) => {
         const cached = userProfileCacheRef.current.get(id);
-        const cachedColor = cached?.territoryColor ?? communityOwnerColorCacheRef.current[id];
+        const cachedColor =
+          normalizeTerritoryHex(cached?.territoryColor) ??
+          normalizeTerritoryHex(communityOwnerColorCacheRef.current[id]) ??
+          communityOwnerColorCacheRef.current[id];
         return !cachedColor;
       });
       if (!missingOrOutdated.length) return;
@@ -606,7 +623,7 @@ export function useTerritoryMapData(params: {
             avatarUrl: profile.avatarUrl,
             territoryColor: profile.territoryColor,
           });
-          nextColors[uid] = profile.territoryColor!;
+          nextColors[uid] = normalizeTerritoryHex(profile.territoryColor) ?? profile.territoryColor!;
         });
       }
       if (cancelled || !Object.keys(nextColors).length) return;
