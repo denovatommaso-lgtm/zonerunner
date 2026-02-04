@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { MapContainer, TileLayer, GeoJSON, Polyline } from 'react-leaflet';
 import type { FeatureCollection } from '../../lib/maps/geojson';
+import { OSM_ATTRIBUTION, OSM_TILE_URL } from '../../lib/maps/osm';
 
 type Props = {
   cameraRef?: React.Ref<any>;
@@ -15,11 +16,6 @@ type Props = {
   onTerritoryPress?: (payload: any) => void;
   onMapReady?: () => void;
 };
-
-const tileUrl =
-  process.env.EXPO_PUBLIC_OSM_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const attribution =
-  process.env.EXPO_PUBLIC_OSM_ATTRIBUTION || '© OpenStreetMap contributors';
 
 export default function TerritoryMapWeb({
   cameraRef,
@@ -52,7 +48,7 @@ export default function TerritoryMapWeb({
         zoomControl={false}
         whenReady={onMapReady}
       >
-        <TileLayer url={tileUrl} attribution={attribution} />
+        <TileLayer url={OSM_TILE_URL} attribution={OSM_ATTRIBUTION} />
         {territoryFeatures.features.length > 0 && (
           <GeoJSON
             data={territoryFeatures as any}

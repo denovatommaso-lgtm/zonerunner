@@ -1,2 +1,10 @@
-export const OSM_STYLE_URL = 'https://demotiles.maplibre.org/style.json';
-export const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
+export const OSM_STYLE_URL =
+  process.env.EXPO_PUBLIC_OSM_STYLE_URL ||
+  'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+
+export const OSM_TILE_URL =
+  process.env.EXPO_PUBLIC_OSM_TILE_URL ||
+  'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+
+export const OSM_ATTRIBUTION =
+  process.env.EXPO_PUBLIC_OSM_ATTRIBUTION || '© OpenStreetMap contributors © CARTO';

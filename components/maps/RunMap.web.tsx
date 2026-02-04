@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { MapContainer, TileLayer, Polyline } from 'react-leaflet';
 import type { LatLng } from '../../lib/maps/geojson';
+import { OSM_ATTRIBUTION, OSM_TILE_URL } from '../../lib/maps/osm';
 
 type Props = {
   cameraRef?: React.Ref<any>;
@@ -14,11 +15,6 @@ type Props = {
   allowInteraction: boolean;
   onMapReady?: () => void;
 };
-
-const tileUrl =
-  process.env.EXPO_PUBLIC_OSM_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const attribution =
-  process.env.EXPO_PUBLIC_OSM_ATTRIBUTION || '© OpenStreetMap contributors';
 
 export default function RunMapWeb({
   initialRegion,
@@ -53,7 +49,7 @@ export default function RunMapWeb({
         boxZoom={allowInteraction}
         keyboard={allowInteraction}
       >
-        <TileLayer url={tileUrl} attribution={attribution} />
+        <TileLayer url={OSM_TILE_URL} attribution={OSM_ATTRIBUTION} />
         {runActive && routeCoords.length > 1 ? (
           <Polyline
             positions={routeCoords.map((p) => [p.latitude, p.longitude]) as any}

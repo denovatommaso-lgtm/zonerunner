@@ -13,7 +13,7 @@ if (Platform.OS !== 'web' || typeof document !== 'undefined') {
 type Props = ExpoIonicons extends null ? Record<string, unknown> : React.ComponentProps<typeof ExpoIonicons>;
 
 function Ionicons(props: Props) {
-  const [ready, setReady] = useState(Platform.OS !== 'web');
+  const [ready, setReady] = useState(Platform.OS !== 'web' || typeof document !== 'undefined');
 
   useEffect(() => {
     if (!ExpoIonicons || Platform.OS !== 'web') return;
@@ -33,7 +33,11 @@ function Ionicons(props: Props) {
     };
   }, []);
 
-  if (!ExpoIonicons || !ready) return null;
+  if (!ExpoIonicons) return null;
+  // On web, render even if font load is still in-flight to avoid missing icons.
+  if (Platform.OS === 'web' && !ready) {
+    return <ExpoIonicons {...(props as any)} />;
+  }
   return <ExpoIonicons {...(props as any)} />;
 }
 
