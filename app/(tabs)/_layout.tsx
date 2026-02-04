@@ -6,8 +6,9 @@ import TabIcon from '@/components/common/TabIcon';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const barHeight = 64 + insets.bottom;
-  const barPaddingBottom = 8 + insets.bottom;
+  const barHeight = Platform.OS === 'ios' ? 62 : 58;
+  const barPaddingBottom = Platform.OS === 'ios' ? 8 : 6;
+  const barPaddingTop = 6;
 
   return (
     <Tabs
@@ -16,12 +17,13 @@ export default function TabLayout() {
       screenOptions={({ route }) => ({
         headerShown: false,
         lazy: true,
+        tabBarSafeAreaInsets: { bottom: 0 },
         tabBarStyle: {
           backgroundColor: '#0a0f1f', // slightly brighter navy for the bottom bar
           borderTopColor: '#151b2a',
           height: barHeight,
           paddingBottom: barPaddingBottom,
-          paddingTop: 8,
+          paddingTop: barPaddingTop,
           ...(Platform.OS === 'web'
             ? {
                 position: 'fixed',
@@ -30,6 +32,13 @@ export default function TabLayout() {
                 bottom: 0,
               }
             : null),
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          paddingBottom: 2,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
         },
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#777',
@@ -52,7 +61,8 @@ export default function TabLayout() {
             iconName = 'ellipse';
           }
 
-          return <TabIcon name={iconName} size={size} color={color} />;
+          const resolvedSize = size ?? 22;
+          return <TabIcon name={iconName} size={resolvedSize} color={color} />;
         },
       })}
     >
