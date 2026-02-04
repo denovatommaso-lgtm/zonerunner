@@ -4,6 +4,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { defineSecret } from 'firebase-functions/params';
 import crypto from 'crypto';
 import * as webpush from 'web-push';
 
@@ -14,11 +15,23 @@ const DEFAULT_CHUNK_SIZE = 200;
 const LOCK_TTL_MS = 8 * 60 * 1000;
 const TERRITORY_DROP_THRESHOLD_KM2 = 0.01;
 const TERRITORY_NOTIFY_COOLDOWN_MS = 30 * 60 * 1000;
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
-const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@zonerunner.app';
-if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+const VAPID_PUBLIC_KEY = defineSecret('VAPID_PUBLIC_KEY');
+const VAPID_PRIVATE_KEY = defineSecret('VAPID_PRIVATE_KEY');
+const VAPID_SUBJECT = defineSecret('VAPID_SUBJECT');
+let vapidReady = false;
+
+function ensureVapidConfigured() {
+  if (vapidReady) return true;
+  const pub = process.env.VAPID_PUBLIC_KEY;
+  const priv = process.env.VAPID_PRIVATE_KEY;
+  const subject = process.env.VAPID_SUBJECT || 'mailto:support@zonerunner.app';
+  if (!pub || !priv) {
+    console.warn('[Push] VAPID keys missing; skip send');
+    return false;
+  }
+  webpush.setVapidDetails(subject, pub, priv);
+  vapidReady = true;
+  return true;
 }
 
 type RunLike = {
@@ -62,8 +75,7 @@ async function sendPushToUser(
   userId: string,
   payload: Record<string, unknown>
 ) {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
-    console.warn('[Push] VAPID keys missing; skip send');
+  if (!ensureVapidConfigured()) {
     return;
   }
   const snap = await db.collection(PUSH_COLLECTION).where('uid', '==', userId).get();
@@ -134,12 +146,14 @@ function toRunLike(raw: any): RunLike | null {
   };
 }
 
-export const registerPushSubscription = onRequest({ cors: true }, async (req, res) => {
-  try {
-    if (req.method !== 'POST') {
-      res.status(405).send('Method not allowed');
-      return;
-    }
+export const registerPushSubscription = onRequest(
+  { cors: true, secrets: [VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT] },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).send('Method not allowed');
+        return;
+      }
     const decoded = await verifyRequestAuth(req);
     const uid = decoded.uid;
     const subscription = (req.body?.subscription ?? null) as PushSubscriptionPayload | null;
@@ -164,14 +178,17 @@ export const registerPushSubscription = onRequest({ cors: true }, async (req, re
   } catch (e: any) {
     res.status(401).send(e?.message ?? 'Unauthorized');
   }
-});
+  }
+);
 
-export const unregisterPushSubscription = onRequest({ cors: true }, async (req, res) => {
-  try {
-    if (req.method !== 'POST') {
-      res.status(405).send('Method not allowed');
-      return;
-    }
+export const unregisterPushSubscription = onRequest(
+  { cors: true, secrets: [VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT] },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).send('Method not allowed');
+        return;
+      }
     const decoded = await verifyRequestAuth(req);
     const uid = decoded.uid;
     const endpoint = req.body?.endpoint as string | undefined;
@@ -186,10 +203,11 @@ export const unregisterPushSubscription = onRequest({ cors: true }, async (req, 
   } catch (e: any) {
     res.status(401).send(e?.message ?? 'Unauthorized');
   }
-});
+  }
+);
 
 export const notifyGroupRunStarting = onDocumentCreated(
-  'groupActiveRuns/{groupId}',
+  { document: 'groupActiveRuns/{groupId}', secrets: [VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT] },
   async (event) => {
     try {
       const snap = event.data;
@@ -233,7 +251,7 @@ export const notifyGroupRunStarting = onDocumentCreated(
 );
 
 export const notifyFriendRequest = onDocumentCreated(
-  'friendRequests/{requestId}',
+  { document: 'friendRequests/{requestId}', secrets: [VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT] },
   async (event) => {
     try {
       const snap = event.data;
@@ -276,7 +294,11 @@ export const notifyFriendRequest = onDocumentCreated(
 );
 
 export const rebuildGlobalTerritorySnapshot = onSchedule(
-  { schedule: '*/10 * * * *', timeZone: 'UTC' },
+  {
+    schedule: '*/10 * * * *',
+    timeZone: 'UTC',
+    secrets: [VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT],
+  },
   async () => {
     (globalThis as any).__DEV__ = false;
     const startedAt = Date.now();
