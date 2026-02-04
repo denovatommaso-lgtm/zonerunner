@@ -93,7 +93,7 @@ async function sendPushToUser(
       },
     } as any;
     sendTasks.push(
-      webpush.sendNotification(pushSub, JSON.stringify(payload)).catch((err) => {
+      webpush.sendNotification(pushSub, JSON.stringify(payload)).catch((err: any) => {
         const statusCode = (err as any)?.statusCode;
         if (statusCode === 404 || statusCode === 410) {
           return docSnap.ref.delete().catch(() => undefined);
@@ -206,6 +206,35 @@ export const unregisterPushSubscription = onRequest(
   }
 );
 
+export const sendTestPush = onRequest(
+  { cors: true, secrets: [VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT] },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).send('Method not allowed');
+        return;
+      }
+      const decoded = await verifyRequestAuth(req);
+      const uid = decoded.uid;
+      const userSnap = await db.doc(`users/${uid}`).get();
+      const prefs = (userSnap.data() as any)?.notificationPrefs as NotificationPrefs | undefined;
+      if (!prefs?.pushEnabled) {
+        res.status(400).send('Push notifications are disabled');
+        return;
+      }
+      await sendPushToUser(uid, {
+        title: 'Test push',
+        body: 'Push notifications are working.',
+        tag: 'test-push',
+        data: { url: '/' },
+      });
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(401).send(e?.message ?? 'Unauthorized');
+    }
+  }
+);
+
 export const notifyGroupRunStarting = onDocumentCreated(
   { document: 'groupActiveRuns/{groupId}', secrets: [VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT] },
   async (event) => {
@@ -314,7 +343,7 @@ export const rebuildGlobalTerritorySnapshot = onSchedule(
         if (lockedAtMs && Date.now() - lockedAtMs < LOCK_TTL_MS) {
           return;
         }
-        tx.set(lockRef, { lockedAtMs: Date.now(), lockedBy }, { merge: true });
+        tx.set(lockRef, { lockedAtMs: Date.now(), lockedBy: lockBy }, { merge: true });
         acquired = true;
       });
 

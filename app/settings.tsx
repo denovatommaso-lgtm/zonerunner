@@ -29,6 +29,7 @@ import {
   isWebPushSupported,
   registerPushSubscription,
   requestNotificationPermission,
+  sendTestPushNotification,
   showLocalNotification,
   unregisterPushSubscription,
 } from '../lib/notifications/service';
@@ -534,6 +535,25 @@ export default function SettingsScreen() {
             disabled={notificationSaving}
           >
             <Text style={styles.devButtonText}>Send test notification</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.devButton, notificationSaving && styles.devButtonDisabled]}
+            onPress={async () => {
+              try {
+                if (!notificationPrefs.pushEnabled) {
+                  Alert.alert('Enable push', 'Turn on push notifications first.');
+                  return;
+                }
+                await sendTestPushNotification();
+                Alert.alert('Sent', 'A test push was sent.');
+              } catch (e) {
+                const message = (e as any)?.message ?? 'Failed to send push.';
+                Alert.alert('Error', message);
+              }
+            }}
+            disabled={notificationSaving}
+          >
+            <Text style={styles.devButtonText}>Send test push</Text>
           </TouchableOpacity>
         </View>
 

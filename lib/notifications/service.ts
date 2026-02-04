@@ -125,6 +125,10 @@ export async function unregisterPushSubscription() {
   await subscription.unsubscribe();
 }
 
+export async function sendTestPushNotification() {
+  await callFunction('sendTestPush', {});
+}
+
 export async function loadLastTerritoryAreaKm2(): Promise<number | null> {
   try {
     const raw = await AsyncStorage.getItem(LAST_TERRITORY_AREA_KEY);
