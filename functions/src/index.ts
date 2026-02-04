@@ -40,6 +40,7 @@ type NotificationPrefs = {
   localEnabled?: boolean;
   territoryStolen?: boolean;
   groupRunStarting?: boolean;
+  friendRequest?: boolean;
 };
 
 const PUSH_COLLECTION = 'pushSubscriptions';
@@ -227,6 +228,49 @@ export const notifyGroupRunStarting = onDocumentCreated(
       }
     } catch (e) {
       console.error('[Push] failed to notify group run', e);
+    }
+  }
+);
+
+export const notifyFriendRequest = onDocumentCreated(
+  'friendRequests/{requestId}',
+  async (event) => {
+    try {
+      const snap = event.data;
+      if (!snap?.exists) return;
+      const data = snap.data() as any;
+      const toUserId = (data?.toUserId ?? '').toString();
+      const fromUserId = (data?.fromUserId ?? '').toString();
+      if (!toUserId) return;
+
+      const toUserSnap = await db.doc(`users/${toUserId}`).get();
+      const prefs = (toUserSnap.data() as any)?.notificationPrefs as NotificationPrefs | undefined;
+      if (!prefs?.pushEnabled || !prefs?.friendRequest) return;
+
+      let fromDisplayName = data?.fromDisplayName as string | undefined;
+      if (!fromDisplayName && fromUserId) {
+        try {
+          const fromUserSnap = await db.doc(`users/${fromUserId}`).get();
+          if (fromUserSnap.exists) {
+            fromDisplayName =
+              (fromUserSnap.data() as any)?.displayName ??
+              (fromUserSnap.data() as any)?.username ??
+              'Someone';
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      const display = fromDisplayName || data?.fromUsername || 'Someone';
+      await sendPushToUser(toUserId, {
+        title: 'Friend request',
+        body: `${display} sent you a friend request`,
+        tag: `friend-request:${snap.id}`,
+        data: { url: '/' },
+      });
+    } catch (e) {
+      console.error('[Push] failed to notify friend request', e);
     }
   }
 );

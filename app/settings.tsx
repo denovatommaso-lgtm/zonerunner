@@ -512,6 +512,16 @@ export default function SettingsScreen() {
               disabled={notificationSaving}
             />
           </View>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleTitle}>Friend requests</Text>
+            <Switch
+              value={!!notificationPrefs.friendRequest}
+              onValueChange={(value) =>
+                applyNotificationPrefs({ ...notificationPrefs, friendRequest: value })
+              }
+              disabled={notificationSaving}
+            />
+          </View>
           <TouchableOpacity
             style={[styles.devButton, notificationSaving && styles.devButtonDisabled]}
             onPress={() => {

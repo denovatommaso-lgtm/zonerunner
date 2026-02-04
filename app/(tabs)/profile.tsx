@@ -17,6 +17,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { logout, updateUserProfile } from '../../lib/authService';
 import { auth } from '../../lib/firebaseConfig';
 import { loadIncomingFriendRequests, respondToFriendRequest } from '../../lib/friendService';
+import { showLocalNotification } from '../../lib/notifications/service';
+import { DEFAULT_NOTIFICATION_PREFS } from '../../lib/notifications/types';
 import Ionicons from '@/components/common/Ionicons';
 import { listGroupsForUser, listGroupInvitesForUser, acceptGroupInvite, declineGroupInvite } from '../../lib/groupService';
 import { formatTimeHrs, formatDistance, formatDate } from '../../lib/utils/format';
@@ -66,6 +68,8 @@ const {
       createdAt: number;
     }[]
   >([]);
+  const friendRequestIdsRef = useRef<Set<string>>(new Set());
+  const friendRequestLoadedRef = useRef(false);
   const [showChallenges, setShowChallenges] = useState(false);
   const [groupInvites, setGroupInvites] = useState<
     {
@@ -250,12 +254,31 @@ const levelReady = !!userProfile;
         fromDisplayName: r.fromDisplayName,
         createdAt: r.createdAt,
       }));
+      const prefs = { ...DEFAULT_NOTIFICATION_PREFS, ...(userProfile?.notificationPrefs ?? {}) };
+      if (prefs.localEnabled && prefs.friendRequest && friendRequestLoadedRef.current) {
+        const prev = friendRequestIdsRef.current;
+        const nextIds = new Set(mapped.map((r) => r.id));
+        const newReq = mapped.find((r) => !prev.has(r.id));
+        if (newReq) {
+          const name = newReq.fromDisplayName || newReq.fromUsername || 'Someone';
+          showLocalNotification({
+            title: 'Friend request',
+            body: `${name} sent you a friend request`,
+            tag: `friend-request:${newReq.id}`,
+            data: { requestId: newReq.id },
+          });
+        }
+        friendRequestIdsRef.current = nextIds;
+      } else {
+        friendRequestIdsRef.current = new Set(mapped.map((r) => r.id));
+      }
+      friendRequestLoadedRef.current = true;
       setFriendRequests(mapped);
     } catch (e) {
       console.log('Failed to load friend requests', e);
       setFriendRequests([]);
     }
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, userProfile?.notificationPrefs]);
 
   const handleFriendResponse = useCallback(
     async (id: string, status: 'accepted' | 'declined') => {
@@ -431,6 +454,11 @@ const handleGroupInviteResponse = useCallback(
 
     return unsub;
   }, []);
+
+  useEffect(() => {
+    friendRequestIdsRef.current = new Set();
+    friendRequestLoadedRef.current = false;
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     if (!accountLoading && !currentUser) {

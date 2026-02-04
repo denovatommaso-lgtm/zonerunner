@@ -100,6 +100,7 @@ function buildDefaultProfile(user: User, overrides?: Partial<UserProfile>): User
       localEnabled: true,
       territoryStolen: true,
       groupRunStarting: true,
+      friendRequest: true,
     },
   };
 }
@@ -226,6 +227,7 @@ export async function signUpWithEmail(
       localEnabled: true,
       territoryStolen: true,
       groupRunStarting: true,
+      friendRequest: true,
     },
   };
 
