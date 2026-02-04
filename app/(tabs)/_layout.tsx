@@ -7,8 +7,8 @@ import TabIcon from '@/components/common/TabIcon';
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const baseHeight = Platform.OS === 'ios' ? 56 : 52;
-  const barHeight = baseHeight;
-  const barPaddingBottom = 0;
+  const barHeight = baseHeight + insets.bottom;
+  const barPaddingBottom = Math.max(6, insets.bottom);
   const barPaddingTop = 8;
 
   return (
@@ -36,13 +36,16 @@ export default function TabLayout() {
             : null),
         },
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: 11,
           lineHeight: 12,
           marginBottom: 0,
-          paddingBottom: 4,
+          paddingBottom: 2,
         },
         tabBarIconStyle: {
           marginTop: 0,
+        },
+        tabBarItemStyle: {
+          paddingBottom: 0,
         },
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#777',

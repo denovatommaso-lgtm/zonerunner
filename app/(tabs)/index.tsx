@@ -745,8 +745,7 @@ const {
 
   const territoryFeatures = useMemo(() => {
     const features = [];
-    const isWeb = Platform.OS === 'web';
-    if (isWeb && mapMode !== 'community' && territoryRuns.length > 0) {
+    if (mapMode !== 'community' && territoryRuns.length > 0) {
       const rebuilt = rebuildTerritoriesFromRuns(territoryRuns as any);
       rebuilt.forEach((terr, ownerId) => {
         if (!terr) return;
