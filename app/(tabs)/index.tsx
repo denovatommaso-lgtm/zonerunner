@@ -8,6 +8,7 @@ import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -744,27 +745,8 @@ const {
 
   const territoryFeatures = useMemo(() => {
     const features = [];
-    if (ownerPolygons.length > 0) {
-      ownerPolygons.forEach(
-        ({ ownerId, rings }: { ownerId: string; rings: LatLng[][] }, idx: number) => {
-          const color = userColors[ownerId] ?? '#6b7280';
-          const ownerType: TerritoryOwnerType = mapMode === 'group' ? 'group' : 'user';
-          rings.forEach((ring: LatLng[], ringIdx: number) => {
-            if (ring.length < 3) return;
-            features.push(
-              polygonFeature(ring, {
-                ownerId,
-                ownerType,
-                territoryId: `${ownerType}:${ownerId}:${idx}:${ringIdx}`,
-                lineColor: color,
-                fillColor: hexToRgba(color, 0.25),
-              })
-            );
-          });
-        }
-      );
-    } else if (territoryRuns.length > 0 && mapMode !== 'community') {
-      // Web fallback: rebuild territories so overlaps subtract correctly.
+    const isWeb = Platform.OS === 'web';
+    if (isWeb && mapMode !== 'community' && territoryRuns.length > 0) {
       const rebuilt = rebuildTerritoriesFromRuns(territoryRuns as any);
       rebuilt.forEach((terr, ownerId) => {
         if (!terr) return;
@@ -784,6 +766,25 @@ const {
           );
         });
       });
+    } else if (ownerPolygons.length > 0) {
+      ownerPolygons.forEach(
+        ({ ownerId, rings }: { ownerId: string; rings: LatLng[][] }, idx: number) => {
+          const color = userColors[ownerId] ?? '#6b7280';
+          const ownerType: TerritoryOwnerType = mapMode === 'group' ? 'group' : 'user';
+          rings.forEach((ring: LatLng[], ringIdx: number) => {
+            if (ring.length < 3) return;
+            features.push(
+              polygonFeature(ring, {
+                ownerId,
+                ownerType,
+                territoryId: `${ownerType}:${ownerId}:${idx}:${ringIdx}`,
+                lineColor: color,
+                fillColor: hexToRgba(color, 0.25),
+              })
+            );
+          });
+        }
+      );
     }
     return featureCollection(features);
   }, [mapMode, ownerPolygons, territoryRuns, userColors]);
