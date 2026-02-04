@@ -49,6 +49,59 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (typeof window === 'undefined') return;
+    if (!('serviceWorker' in navigator)) return;
+    if (process.env.NODE_ENV !== 'production') return;
+
+    let isMounted = true;
+    let updateInterval: ReturnType<typeof setInterval> | null = null;
+
+    const register = async () => {
+      try {
+        const registration = await navigator.serviceWorker.register('/sw.js', {
+          updateViaCache: 'none',
+        });
+
+        const activateWaiting = () => {
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        };
+
+        registration.addEventListener('updatefound', activateWaiting);
+        activateWaiting();
+
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!isMounted) return;
+          window.location.reload();
+        });
+
+        updateInterval = setInterval(() => {
+          registration.update().catch(() => {});
+        }, 60 * 1000);
+      } catch {
+        // ignore
+      }
+    };
+
+    register();
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        navigator.serviceWorker.getRegistration().then((reg) => reg?.update().catch(() => {}));
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      isMounted = false;
+      if (updateInterval) clearInterval(updateInterval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
+  useEffect(() => {
     perfLog({
       screen: 'RootLayout',
       phase: 'BOOT',

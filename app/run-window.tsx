@@ -36,10 +36,8 @@ import {
 } from '../lib/runBackgroundTracking';
 import { finalizeRun } from '../lib/runFinalizer';
 import { useRenderTrace } from '../hooks/useRenderTrace';
-import { Camera, LineLayer, MapView, ShapeSource, UserLocation } from '../lib/maplibre';
-import { OSM_STYLE_URL } from '../lib/maps/osm';
-import { lineStringFeature, regionToCenterZoom, type LatLng } from '../lib/maps/geojson';
-import OsmAttribution from '../components/maps/OsmAttribution';
+import RunMap from '../components/maps/RunMap';
+import { regionToCenterZoom, type LatLng } from '../lib/maps/geojson';
 
 type Coord = RunCoord;
 type Region = {
@@ -169,14 +167,14 @@ export default function RunWindow() {
     return regionToCenterZoom(initialRegion);
   }, [initialRegion]);
 
-  const routeLineShape = useMemo(() => {
-    if (!route.length) return null;
-    const coords: LatLng[] = route.map((p) => ({
-      latitude: p.latitude,
-      longitude: p.longitude,
-    }));
-    return lineStringFeature(coords);
-  }, [route]);
+  const routeCoords = useMemo(
+    () =>
+      route.map((p) => ({
+        latitude: p.latitude,
+        longitude: p.longitude,
+      })) as LatLng[],
+    [route]
+  );
 
   useRenderTrace({
     screen: 'RunWindow',
@@ -762,17 +760,16 @@ export default function RunWindow() {
 
       <View style={[styles.mapContainer, { height: mapHeight }]}>
         {initialRegion ? (
-          <MapView
-            style={StyleSheet.absoluteFillObject}
-            mapStyle={OSM_STYLE_URL}
-            logoEnabled={false}
-            attributionEnabled={false}
-            compassEnabled={false}
-            pitchEnabled={!tracking && !MAP_LITE_DURING_RUN}
-            rotateEnabled={!tracking && !MAP_LITE_DURING_RUN}
-            scrollEnabled={!tracking && !MAP_LITE_DURING_RUN}
-            zoomEnabled={!tracking && !MAP_LITE_DURING_RUN}
-            onDidFinishLoadingMap={() => {
+          <RunMap
+            cameraRef={cameraRef}
+            initialRegion={initialRegion}
+            initialCamera={initialCamera!}
+            showUserLocation={!tracking}
+            routeCoords={routeCoords}
+            runActive={routeCoords.length > 1}
+            routeColor="#1e90ff"
+            allowInteraction={!tracking && !MAP_LITE_DURING_RUN}
+            onMapReady={() => {
               perfLog({
                 screen: 'RunWindow',
                 phase: 'MAP',
@@ -783,38 +780,13 @@ export default function RunWindow() {
                 setCameraToRegion(initialRegion, { duration: 500, zoomOverride: 17 });
               }
             }}
-          >
-            {initialCamera && (
-              <Camera
-                ref={cameraRef}
-                centerCoordinate={initialCamera.center}
-                zoomLevel={initialCamera.zoom}
-                animationDuration={300}
-                animationMode="easeTo"
-              />
-            )}
-            <UserLocation visible={!tracking} />
-            {routeLineShape && (
-              <ShapeSource id="run-route" shape={routeLineShape}>
-                <LineLayer
-                  id="run-route-line"
-                  style={{
-                    lineColor: '#1e90ff',
-                    lineWidth: 4,
-                    lineCap: 'round',
-                    lineJoin: 'round',
-                  }}
-                />
-              </ShapeSource>
-            )}
-          </MapView>
+          />
         ) : (
           <View style={styles.loadingMap}>
             <ActivityIndicator size="small" color="#e5e7eb" />
             <Text style={styles.loadingText}>Getting your location…</Text>
           </View>
         )}
-        <OsmAttribution />
       </View>
 
       <View
