@@ -1,8 +1,14 @@
 import Ionicons from '@/components/common/Ionicons';
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const barHeight = 64 + insets.bottom;
+  const barPaddingBottom = 8 + insets.bottom;
+
   return (
     <Tabs
       initialRouteName="home"
@@ -13,9 +19,17 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#0a0f1f', // slightly brighter navy for the bottom bar
           borderTopColor: '#151b2a',
-          height: 72,
-          paddingBottom: 12,
+          height: barHeight,
+          paddingBottom: barPaddingBottom,
           paddingTop: 8,
+          ...(Platform.OS === 'web'
+            ? {
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }
+            : null),
         },
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#777',
