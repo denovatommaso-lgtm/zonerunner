@@ -1,12 +1,25 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onRequest } from 'firebase-functions/v2/https';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import crypto from 'crypto';
+import * as webpush from 'web-push';
 
 initializeApp();
 
 const db = getFirestore();
 const DEFAULT_CHUNK_SIZE = 200;
 const LOCK_TTL_MS = 8 * 60 * 1000;
+const TERRITORY_DROP_THRESHOLD_KM2 = 0.01;
+const TERRITORY_NOTIFY_COOLDOWN_MS = 30 * 60 * 1000;
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:support@zonerunner.app';
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 type RunLike = {
   id?: string;
@@ -15,6 +28,69 @@ type RunLike = {
   startedAt?: string;
   createdAt?: number;
 };
+
+type PushSubscriptionPayload = {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  expirationTime?: number | null;
+};
+
+type NotificationPrefs = {
+  pushEnabled?: boolean;
+  localEnabled?: boolean;
+  territoryStolen?: boolean;
+  groupRunStarting?: boolean;
+};
+
+const PUSH_COLLECTION = 'pushSubscriptions';
+const USER_STATS_COLLECTION = 'userTerritoryStats';
+
+function hashEndpoint(endpoint: string) {
+  return crypto.createHash('sha1').update(endpoint).digest('hex');
+}
+
+async function verifyRequestAuth(req: any) {
+  const header = req.headers?.authorization || '';
+  const match = header.match(/^Bearer (.+)$/i);
+  if (!match) throw new Error('Missing auth token');
+  const token = match[1];
+  return getAuth().verifyIdToken(token);
+}
+
+async function sendPushToUser(
+  userId: string,
+  payload: Record<string, unknown>
+) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+    console.warn('[Push] VAPID keys missing; skip send');
+    return;
+  }
+  const snap = await db.collection(PUSH_COLLECTION).where('uid', '==', userId).get();
+  if (snap.empty) return;
+  const sendTasks: Promise<unknown>[] = [];
+  snap.docs.forEach((docSnap) => {
+    const data = docSnap.data() as any;
+    const sub = data.subscription as PushSubscriptionPayload | undefined;
+    if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) return;
+    const pushSub = {
+      endpoint: sub.endpoint,
+      keys: {
+        p256dh: sub.keys.p256dh,
+        auth: sub.keys.auth,
+      },
+    } as any;
+    sendTasks.push(
+      webpush.sendNotification(pushSub, JSON.stringify(payload)).catch((err) => {
+        const statusCode = (err as any)?.statusCode;
+        if (statusCode === 404 || statusCode === 410) {
+          return docSnap.ref.delete().catch(() => undefined);
+        }
+        console.error('[Push] send failed', err);
+      })
+    );
+  });
+  await Promise.all(sendTasks);
+}
 
 function normalizeRoutePoint(point: any) {
   if (!point) return null;
@@ -56,6 +132,104 @@ function toRunLike(raw: any): RunLike | null {
     createdAt: raw.createdAt,
   };
 }
+
+export const registerPushSubscription = onRequest({ cors: true }, async (req, res) => {
+  try {
+    if (req.method !== 'POST') {
+      res.status(405).send('Method not allowed');
+      return;
+    }
+    const decoded = await verifyRequestAuth(req);
+    const uid = decoded.uid;
+    const subscription = (req.body?.subscription ?? null) as PushSubscriptionPayload | null;
+    if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+      res.status(400).send('Invalid subscription');
+      return;
+    }
+    const hash = hashEndpoint(subscription.endpoint);
+    const docId = `${uid}_${hash}`;
+    const ref = db.collection(PUSH_COLLECTION).doc(docId);
+    await ref.set(
+      {
+        uid,
+        subscription,
+        updatedAt: Date.now(),
+        userAgent: req.body?.client?.userAgent ?? null,
+        platform: req.body?.client?.platform ?? null,
+      },
+      { merge: true }
+    );
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(401).send(e?.message ?? 'Unauthorized');
+  }
+});
+
+export const unregisterPushSubscription = onRequest({ cors: true }, async (req, res) => {
+  try {
+    if (req.method !== 'POST') {
+      res.status(405).send('Method not allowed');
+      return;
+    }
+    const decoded = await verifyRequestAuth(req);
+    const uid = decoded.uid;
+    const endpoint = req.body?.endpoint as string | undefined;
+    if (!endpoint) {
+      res.status(400).send('Missing endpoint');
+      return;
+    }
+    const hash = hashEndpoint(endpoint);
+    const docId = `${uid}_${hash}`;
+    await db.collection(PUSH_COLLECTION).doc(docId).delete();
+    res.json({ ok: true });
+  } catch (e: any) {
+    res.status(401).send(e?.message ?? 'Unauthorized');
+  }
+});
+
+export const notifyGroupRunStarting = onDocumentCreated(
+  'groupActiveRuns/{groupId}',
+  async (event) => {
+    try {
+      const snap = event.data;
+      if (!snap?.exists) return;
+      const data = snap.data() as any;
+      const groupId = event.params.groupId as string;
+      const startedBy = data?.startedBy as string | undefined;
+      if (!groupId) return;
+
+      const groupSnap = await db.doc(`groups/${groupId}`).get();
+      const groupName = groupSnap.exists ? (groupSnap.data() as any)?.name ?? 'Your group' : 'Your group';
+
+      const membersSnap = await db.collection('groupMemberships').where('groupId', '==', groupId).get();
+      const memberIds = membersSnap.docs
+        .map((d) => (d.data() as any)?.userId)
+        .filter((id) => !!id && id !== startedBy);
+      if (!memberIds.length) return;
+
+      const memberRefs = memberIds.map((id) => db.doc(`users/${id}`));
+      const memberDocs = await db.getAll(...memberRefs);
+      const allowed = memberDocs
+        .filter((d) => d.exists)
+        .map((d) => ({ id: d.id, prefs: (d.data() as any)?.notificationPrefs as NotificationPrefs | undefined }))
+        .filter((m) => m.prefs?.pushEnabled && m.prefs?.groupRunStarting)
+        .map((m) => m.id);
+
+      const payload = {
+        title: 'Group run starting',
+        body: `${groupName} just started a group run.`,
+        tag: `group-run:${groupId}`,
+        data: { url: '/', groupId, runId: snap.id },
+      };
+
+      for (const uid of allowed) {
+        await sendPushToUser(uid, payload);
+      }
+    } catch (e) {
+      console.error('[Push] failed to notify group run', e);
+    }
+  }
+);
 
 export const rebuildGlobalTerritorySnapshot = onSchedule(
   { schedule: '*/10 * * * *', timeZone: 'UTC' },
@@ -105,6 +279,11 @@ export const rebuildGlobalTerritorySnapshot = onSchedule(
         })
         .filter((t): t is { ownerId: string; areaKm2: number; geometryJson: string } => !!t);
 
+      const areaByOwner = new Map<string, number>();
+      territoryEntries.forEach((entry) => {
+        areaByOwner.set(entry.ownerId, (areaByOwner.get(entry.ownerId) ?? 0) + entry.areaKm2);
+      });
+
       const ownersCount = territories.size;
       const territoriesCount = territoryEntries.length;
       const updatedAtMs = Date.now();
@@ -145,6 +324,70 @@ export const rebuildGlobalTerritorySnapshot = onSchedule(
       }
 
       await commitBatch();
+
+      // Detect territory drops and notify owners (push) with cooldown.
+      try {
+        const ownerIds = Array.from(areaByOwner.keys());
+        const ownerChunks =
+          ownerIds.length > DEFAULT_CHUNK_SIZE
+            ? Array.from({ length: Math.ceil(ownerIds.length / DEFAULT_CHUNK_SIZE) }, (_, i) =>
+                ownerIds.slice(i * DEFAULT_CHUNK_SIZE, (i + 1) * DEFAULT_CHUNK_SIZE)
+              )
+            : [ownerIds];
+
+        for (const chunkIds of ownerChunks) {
+          if (!chunkIds.length) continue;
+          const statRefs = chunkIds.map((id) => db.doc(`${USER_STATS_COLLECTION}/${id}`));
+          const statDocs = await db.getAll(...statRefs);
+          const now = Date.now();
+
+          const notifyCandidates: Array<{ userId: string; dropKm2: number }> = [];
+          const statsBatch = db.batch();
+
+          statDocs.forEach((docSnap, idx) => {
+            const userId = chunkIds[idx];
+            const prevArea = Number((docSnap.data() as any)?.areaKm2 ?? 0) || 0;
+            const lastNotifiedAt = Number((docSnap.data() as any)?.lastStolenNotifiedAtMs ?? 0) || 0;
+            const nextArea = areaByOwner.get(userId) ?? 0;
+            const dropKm2 = prevArea - nextArea;
+            const shouldNotify =
+              dropKm2 >= TERRITORY_DROP_THRESHOLD_KM2 &&
+              now - lastNotifiedAt > TERRITORY_NOTIFY_COOLDOWN_MS;
+
+            if (shouldNotify) {
+              notifyCandidates.push({ userId, dropKm2 });
+              statsBatch.set(
+                docSnap.ref,
+                { lastStolenNotifiedAtMs: now, areaKm2: nextArea, updatedAtMs: now },
+                { merge: true }
+              );
+            } else {
+              statsBatch.set(docSnap.ref, { areaKm2: nextArea, updatedAtMs: now }, { merge: true });
+            }
+          });
+
+          await statsBatch.commit();
+
+          if (notifyCandidates.length) {
+            const userRefs = notifyCandidates.map((c) => db.doc(`users/${c.userId}`));
+            const userDocs = await db.getAll(...userRefs);
+            for (let i = 0; i < userDocs.length; i += 1) {
+              const userDoc = userDocs[i];
+              const candidate = notifyCandidates[i];
+              const prefs = (userDoc.data() as any)?.notificationPrefs as NotificationPrefs | undefined;
+              if (!prefs?.pushEnabled || !prefs?.territoryStolen) continue;
+              await sendPushToUser(candidate.userId, {
+                title: 'Territory stolen',
+                body: `You lost ${candidate.dropKm2.toFixed(2)} km² of territory.`,
+                tag: 'territory-stolen',
+                data: { url: '/', dropKm2: candidate.dropKm2 },
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[SnapshotJob] failed to notify territory drops', e);
+      }
       console.log(
         `[SnapshotJob] runs=${runLikes.length} owners=${ownersCount} territories=${territoriesCount} durationMs=${
           Date.now() - startedAt

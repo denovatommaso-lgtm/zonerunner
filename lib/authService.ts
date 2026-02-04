@@ -25,6 +25,7 @@ import { monthlyChallengesDocRef } from "./monthlyChallengesStore";
 import type { MonthlyChallengesState } from "./monthlyChallenges";
 import { perfBytes, perfStart } from "./perfLogger";
 import { logFailure, logStart, logSuccess } from "./bootstrapLogger";
+import type { NotificationPrefs } from "./notifications/types";
 
 export type UserProfile = {
   email: string | null;
@@ -61,6 +62,7 @@ export type UserProfile = {
   onboardingChallengeId?: string; // optional choice from signup
   lifetimeXp?: number; // cumulative XP, non-decreasing
   monthlyChallenges?: import('./monthlyChallenges').MonthlyChallengesState;
+  notificationPrefs?: NotificationPrefs;
 };
 
 function buildDefaultProfile(user: User, overrides?: Partial<UserProfile>): UserProfile {
@@ -93,6 +95,12 @@ function buildDefaultProfile(user: User, overrides?: Partial<UserProfile>): User
     selectedLevelBorderTier: "default",
     selectedMedals: [],
     lifetimeXp: 0,
+    notificationPrefs: {
+      pushEnabled: false,
+      localEnabled: true,
+      territoryStolen: true,
+      groupRunStarting: true,
+    },
   };
 }
 
@@ -140,6 +148,7 @@ function normalizeUserProfile(raw: Partial<UserProfile>): UserProfile {
     onboardingChallengeId: raw.onboardingChallengeId,
     lifetimeXp: typeof raw.lifetimeXp === 'number' ? raw.lifetimeXp : 0,
     monthlyChallenges: raw.monthlyChallenges,
+    notificationPrefs: raw.notificationPrefs,
   };
 }
 
@@ -212,6 +221,12 @@ export async function signUpWithEmail(
     selectedLevelBorderTier: 'default',
     selectedMedals: [],
     lifetimeXp: 0,
+    notificationPrefs: {
+      pushEnabled: false,
+      localEnabled: true,
+      territoryStolen: true,
+      groupRunStarting: true,
+    },
   };
 
   await setDoc(doc(db, "users", user.uid), profile);
@@ -262,12 +277,18 @@ export async function signInWithEmail(
       birthDay: undefined,
       birthMonth: undefined,
       birthYear: undefined,
-    bannerUrl: "",
-    territoryColor: "#22c55e",
-    avatarUrl: "",
-    createdAt: Date.now(),
-    lifetimeXp: 0,
-  };
+      bannerUrl: "",
+      territoryColor: "#22c55e",
+      avatarUrl: "",
+      createdAt: Date.now(),
+      lifetimeXp: 0,
+      notificationPrefs: {
+        pushEnabled: false,
+        localEnabled: true,
+        territoryStolen: true,
+        groupRunStarting: true,
+      },
+    };
     await setDoc(doc(db, "users", cred.user.uid), profile);
   }
 

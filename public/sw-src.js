@@ -17,6 +17,42 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Push notifications
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    if (event.data) payload = event.data.json();
+  } catch {
+    payload = {};
+  }
+  const title = payload.title || 'ZoneRunner';
+  const options = {
+    body: payload.body,
+    icon: payload.icon || '/icons/icon-192.png',
+    data: payload.data || {},
+    tag: payload.tag,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification?.data?.url || '/';
+  event.waitUntil(
+    (async () => {
+      const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of allClients) {
+        if (client.url.includes(targetUrl) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })()
+  );
+});
+
 precacheAndRoute(self.__WB_MANIFEST || []);
 
 // Navigation requests: prefer network for freshest app shell.

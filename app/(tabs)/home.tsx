@@ -25,6 +25,14 @@ import { useLevelColors } from '../../hooks/useLevelColors';
 import { useGoogleAuth } from '../../lib/auth';
 import { sendFriendRequest } from '../../lib/friendService';
 import {
+  loadLastTerritoryAreaKm2,
+  loadLastTerritoryNotifyAtMs,
+  saveLastTerritoryAreaKm2,
+  saveLastTerritoryNotifyAtMs,
+  showLocalNotification,
+} from '../../lib/notifications/service';
+import { DEFAULT_NOTIFICATION_PREFS } from '../../lib/notifications/types';
+import {
   getGroupStats,
   getUserGroupStats,
 } from '../../lib/groupService';
@@ -116,6 +124,9 @@ export default function HomeScreen() {
   const loadDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const lastRefreshRef = useRef(0);
+  const lastTerritoryAreaRef = useRef<number | null>(null);
+  const lastTerritoryNotifyAtRef = useRef<number | null>(null);
+  const territoryAreaLoadedRef = useRef(false);
 
   useRenderTrace({
     screen: 'Home',
@@ -190,6 +201,7 @@ export default function HomeScreen() {
     groups,
     userId: user?.uid,
     startRun: startGroupRunNow,
+    notificationPrefs: user?.profile?.notificationPrefs,
   });
 
   const {
@@ -380,6 +392,66 @@ useEffect(() => {
     () => groups.find((g) => g.id === activeGroupId),
     [groups, activeGroupId]
   );
+
+  const notificationPrefs = useMemo(
+    () => ({ ...DEFAULT_NOTIFICATION_PREFS, ...(user?.profile?.notificationPrefs ?? {}) }),
+    [user?.profile?.notificationPrefs]
+  );
+
+  useEffect(() => {
+    territoryAreaLoadedRef.current = false;
+    lastTerritoryAreaRef.current = null;
+    lastTerritoryNotifyAtRef.current = null;
+    if (!user?.uid) return;
+    (async () => {
+      const [lastArea, lastNotifyAt] = await Promise.all([
+        loadLastTerritoryAreaKm2(),
+        loadLastTerritoryNotifyAtMs(),
+      ]);
+      lastTerritoryAreaRef.current = lastArea;
+      lastTerritoryNotifyAtRef.current = lastNotifyAt;
+      territoryAreaLoadedRef.current = true;
+    })();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (mode !== 'personal') return;
+    if (!user?.uid) return;
+    if (!territoryAreaLoadedRef.current) return;
+
+    const prev = lastTerritoryAreaRef.current;
+    const next = ownedTerritoryKm2;
+    if (prev == null) {
+      lastTerritoryAreaRef.current = next;
+      void saveLastTerritoryAreaKm2(next);
+      return;
+    }
+
+    const dropKm2 = prev - next;
+    const thresholdKm2 = 0.01;
+    const cooldownMs = 30 * 60 * 1000;
+    const now = Date.now();
+    const lastNotifyAt = lastTerritoryNotifyAtRef.current ?? 0;
+
+    if (
+      dropKm2 >= thresholdKm2 &&
+      notificationPrefs.localEnabled &&
+      notificationPrefs.territoryStolen &&
+      now - lastNotifyAt > cooldownMs
+    ) {
+      showLocalNotification({
+        title: 'Territory stolen',
+        body: `You lost ${dropKm2.toFixed(2)} km² of territory.`,
+        tag: 'territory-stolen',
+        data: { dropKm2, nextKm2: next },
+      });
+      lastTerritoryNotifyAtRef.current = now;
+      void saveLastTerritoryNotifyAtMs(now);
+    }
+
+    lastTerritoryAreaRef.current = next;
+    void saveLastTerritoryAreaKm2(next);
+  }, [mode, ownedTerritoryKm2, notificationPrefs.localEnabled, notificationPrefs.territoryStolen, user?.uid]);
 
   const normalizedRuns = runs.map((r) => ({
     ...r,

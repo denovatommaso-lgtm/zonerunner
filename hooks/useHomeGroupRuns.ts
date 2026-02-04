@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import {
   getActiveGroupRun,
@@ -10,6 +10,8 @@ import {
 } from '../lib/groupService';
 import type { GroupMember } from '../lib/groupTypes';
 import { canStartGroupRun } from '../lib/utils/groupRunPermissions';
+import { showLocalNotification } from '../lib/notifications/service';
+import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from '../lib/notifications/types';
 
 export function useHomeGroupRuns(params: {
   mode: 'personal' | 'group';
@@ -17,14 +19,16 @@ export function useHomeGroupRuns(params: {
   setActiveGroupId: (id: string) => void;
   groups: Array<{
     id: string;
+    name?: string;
     joinCode?: string;
     allowMemberCasualRuns?: boolean;
     allowMemberOfficialRuns?: boolean;
   }>;
   userId?: string;
   startRun: (options: { groupRunType: 'casual' | 'official' }) => void;
+  notificationPrefs?: NotificationPrefs;
 }) {
-  const { mode, activeGroupId, setActiveGroupId, groups, userId, startRun } = params;
+  const { mode, activeGroupId, setActiveGroupId, groups, userId, startRun, notificationPrefs } = params;
 
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [activeGroupRun, setActiveGroupRun] = useState<ActiveGroupRun | null>(null);
@@ -35,6 +39,32 @@ export function useHomeGroupRuns(params: {
   const [runTypeModalVisible, setRunTypeModalVisible] = useState(false);
   const [pendingGroupId, setPendingGroupId] = useState<string | null>(null);
   const [pendingRunType, setPendingRunType] = useState<'casual' | 'official'>('casual');
+  const lastNotifiedRunIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'group') return;
+    if (!activeGroupRun || !userId) return;
+    const prefs = { ...DEFAULT_NOTIFICATION_PREFS, ...(notificationPrefs ?? {}) };
+    if (!prefs.localEnabled || !prefs.groupRunStarting) return;
+    if (activeGroupRun.startedBy === userId) return;
+
+    if (lastNotifiedRunIdRef.current === activeGroupRun.id) return;
+    lastNotifiedRunIdRef.current = activeGroupRun.id;
+
+    const groupName = groups.find((g) => g.id === activeGroupRun.groupId)?.name ?? 'Your group';
+    showLocalNotification({
+      title: 'Group run starting',
+      body: `${groupName} just started a group run.`,
+      tag: `group-run:${activeGroupRun.groupId}`,
+      data: { groupId: activeGroupRun.groupId, runId: activeGroupRun.id },
+    });
+  }, [
+    activeGroupRun,
+    groups,
+    mode,
+    notificationPrefs,
+    userId,
+  ]);
 
   useEffect(() => {
     const loadMembers = async () => {

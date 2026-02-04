@@ -5,6 +5,7 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -23,6 +24,15 @@ import {
   RankingsLocationPicker,
   type RankingsLocationValue,
 } from '../components/common/RankingsLocationPicker';
+import {
+  isWebNotificationSupported,
+  isWebPushSupported,
+  registerPushSubscription,
+  requestNotificationPermission,
+  showLocalNotification,
+  unregisterPushSubscription,
+} from '../lib/notifications/service';
+import { DEFAULT_NOTIFICATION_PREFS, type NotificationPrefs } from '../lib/notifications/types';
 
 const PROFILE_KEY = 'zonerunner:profile';
 const PRIVACY_POLICY_URL = 'https://zonerunner.app/privacy';
@@ -46,6 +56,8 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [locationSaving, setLocationSaving] = useState(false);
   const [pickerField, setPickerField] = useState<'day' | 'month' | 'year' | null>(null);
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPrefs>(DEFAULT_NOTIFICATION_PREFS);
+  const [notificationSaving, setNotificationSaving] = useState(false);
 
   const dayOptions = Array.from({ length: 31 }, (_, i) => String(i + 1));
   const monthOptions = [
@@ -88,6 +100,14 @@ export default function SettingsScreen() {
     if (user?.profile?.birthYear) setBirthYear(String(user.profile.birthYear));
     if (user?.profile?.rankLocationSetAtMs) {
       setRankLocationSetAtMs(user.profile.rankLocationSetAtMs);
+    }
+    if (user?.profile?.notificationPrefs) {
+      setNotificationPrefs({
+        ...DEFAULT_NOTIFICATION_PREFS,
+        ...user.profile.notificationPrefs,
+      });
+    } else {
+      setNotificationPrefs(DEFAULT_NOTIFICATION_PREFS);
     }
     setRankLocation({
       countryCode: user?.profile?.countryCode,
@@ -202,6 +222,51 @@ export default function SettingsScreen() {
       Alert.alert('Error', message);
     } finally {
       setLocationSaving(false);
+    }
+  };
+
+  const applyNotificationPrefs = async (
+    next: NotificationPrefs,
+    pushChange?: 'enable' | 'disable'
+  ) => {
+    if (!user?.uid) return;
+    const prev = notificationPrefs;
+    setNotificationPrefs(next);
+    setNotificationSaving(true);
+    try {
+      if (pushChange === 'enable') {
+        if (!isWebPushSupported()) {
+          Alert.alert(
+            'Push not supported',
+            'Push notifications are only available on the PWA in supported browsers.'
+          );
+          setNotificationPrefs(prev);
+          return;
+        }
+        await registerPushSubscription();
+      }
+      if (pushChange === 'disable') {
+        await unregisterPushSubscription();
+      }
+      if (next.localEnabled) {
+        const permission = await requestNotificationPermission();
+        if (permission !== 'granted') {
+          Alert.alert(
+            'Permission blocked',
+            'Enable notifications in your browser settings to use in-app alerts.'
+          );
+          const patched = { ...next, localEnabled: false };
+          setNotificationPrefs(patched);
+          next = patched;
+        }
+      }
+      await updateUserProfile(user.uid, { notificationPrefs: next });
+    } catch (e) {
+      const message = (e as any)?.message ?? 'Failed to update notifications.';
+      Alert.alert('Error', message);
+      setNotificationPrefs(prev);
+    } finally {
+      setNotificationSaving(false);
     }
   };
 
@@ -390,6 +455,78 @@ export default function SettingsScreen() {
           <Text style={styles.linkHelper}>Opens in your browser</Text>
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.label}>Notifications</Text>
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>Push notifications</Text>
+              <Text style={styles.helperText}>
+                Alerts even when the PWA is closed (web only).
+              </Text>
+            </View>
+            <Switch
+              value={!!notificationPrefs.pushEnabled}
+              onValueChange={(value) =>
+                applyNotificationPrefs(
+                  { ...notificationPrefs, pushEnabled: value },
+                  value ? 'enable' : 'disable'
+                )
+              }
+              disabled={notificationSaving || !isWebPushSupported()}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>In-app notifications</Text>
+              <Text style={styles.helperText}>
+                Alerts while the app is open (web only).
+              </Text>
+            </View>
+            <Switch
+              value={!!notificationPrefs.localEnabled}
+              onValueChange={(value) =>
+                applyNotificationPrefs({ ...notificationPrefs, localEnabled: value })
+              }
+              disabled={notificationSaving || !isWebNotificationSupported()}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleTitle}>Territory stolen</Text>
+            <Switch
+              value={!!notificationPrefs.territoryStolen}
+              onValueChange={(value) =>
+                applyNotificationPrefs({ ...notificationPrefs, territoryStolen: value })
+              }
+              disabled={notificationSaving}
+            />
+          </View>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleTitle}>Group run starting</Text>
+            <Switch
+              value={!!notificationPrefs.groupRunStarting}
+              onValueChange={(value) =>
+                applyNotificationPrefs({ ...notificationPrefs, groupRunStarting: value })
+              }
+              disabled={notificationSaving}
+            />
+          </View>
+          <TouchableOpacity
+            style={[styles.devButton, notificationSaving && styles.devButtonDisabled]}
+            onPress={() => {
+              showLocalNotification({
+                title: 'ZoneRunner',
+                body: 'This is a test notification.',
+                tag: 'test',
+              });
+            }}
+            disabled={notificationSaving}
+          >
+            <Text style={styles.devButtonText}>Send test notification</Text>
+          </TouchableOpacity>
+        </View>
+
         <Modal
           key={pickerField ?? 'picker-none'}
           visible={pickerField !== null}
@@ -527,6 +664,17 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 12,
     marginTop: 6,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  toggleTitle: {
+    color: '#e5e7eb',
+    fontWeight: '700',
   },
   rankLocationActions: {
     marginTop: -8,
