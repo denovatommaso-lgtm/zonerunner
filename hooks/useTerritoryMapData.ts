@@ -45,6 +45,37 @@ function normalizeTerritoryHex(value: string | null | undefined): string | null 
   return null;
 }
 
+function toMillis(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function getRunTimestampMs(run: any): number {
+  return toMillis(
+    run?.endedAtMs ??
+      run?.endedAt ??
+      run?.createdAtMs ??
+      run?.createdAt ??
+      run?.startedAtMs ??
+      run?.startedAt
+  );
+}
+
+function sortRunsStable<T extends { id?: string }>(runs: T[]): T[] {
+  return [...runs].sort((a: any, b: any) => {
+    const ta = getRunTimestampMs(a);
+    const tb = getRunTimestampMs(b);
+    if (ta !== tb) return ta - tb;
+    const ida = (a?.id ?? '').toString();
+    const idb = (b?.id ?? '').toString();
+    return ida.localeCompare(idb);
+  });
+}
+
 export function useTerritoryMapData(params: {
   userId?: string;
   mode: 'personal' | 'group' | 'community';
@@ -164,7 +195,7 @@ export function useTerritoryMapData(params: {
         return;
       }
       const personalRuns = await fetchRunsForContext({ mode: 'personal', userId: resolvedUserId });
-      setPastRuns(personalRuns as any);
+      setPastRuns(sortRunsStable(personalRuns as any));
       return;
     }
     const tag = 'TerritoryMapData.loadRuns';
@@ -176,7 +207,7 @@ export function useTerritoryMapData(params: {
     try {
       if (mode === 'group') {
         const groupRuns = (await fetchRunsForContext({ mode: 'group', groupId: resolvedGroupId })) as any[];
-        setPastRuns(groupRuns as any);
+        setPastRuns(sortRunsStable(groupRuns as any));
 
         const uniqueGroupIds = Array.from(
           new Set(groupRuns.map((r: any) => r.groupId).filter(Boolean))
@@ -196,7 +227,7 @@ export function useTerritoryMapData(params: {
 
       // Fast path: show cached/prefetched territory runs immediately.
       const prefetched = getPrefetchedTerritory().runs;
-      if (prefetched?.length) setPastRuns(prefetched as any);
+      if (prefetched?.length) setPastRuns(sortRunsStable(prefetched as any));
 
       if (mode === 'personal' && !resolvedUserId) {
         logSuccess(tag, { skipped: true, reason: 'missing-userId' });
@@ -227,11 +258,12 @@ export function useTerritoryMapData(params: {
         return true;
       });
 
-      setPastRuns(deduped as any);
-      setPrefetchedTerritoryRuns(deduped as any);
+      const orderedDeduped = sortRunsStable(deduped as any);
+      setPastRuns(orderedDeduped as any);
+      setPrefetchedTerritoryRuns(orderedDeduped as any);
 
       const uniqueUserIds = Array.from(
-        new Set(deduped.map((r: any) => r.userId).filter(Boolean))
+        new Set(orderedDeduped.map((r: any) => r.userId).filter(Boolean))
       ) as string[];
 
       // Fetch profiles in background; keep colors neutral until resolved to avoid flash of wrong colors.
@@ -450,12 +482,12 @@ export function useTerritoryMapData(params: {
           (r): r is TerritoryMapRunSummary & { groupId: string } =>
             !!r.groupId && isRunAffectingGroupTerritory(r as any)
         )
-        .map((r) => ({ ...r, userId: r.groupId }));
+        .map((r) => ({ ...r, userId: r.groupId, createdAt: getRunTimestampMs(r) }));
     }
     return pastRuns.filter(
       (r): r is TerritoryMapRunSummary & { userId: string } =>
         !!r.userId && !(r as any).groupId && (r as any).mode !== 'group'
-    );
+    ).map((r) => ({ ...r, createdAt: getRunTimestampMs(r) }));
   }, [pastRuns, mode]);
 
   // Fallback: if canonical state is empty but we have runs, compute locally.
