@@ -47,74 +47,80 @@ export function useLiveLocation(options?: {
     }
 
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      // Ask platform to use the most accurate providers available.
       try {
-        if (Location.enableNetworkProviderAsync) {
-          await Location.enableNetworkProviderAsync();
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        // Ask platform to use the most accurate providers available.
+        try {
+          if (Location.enableNetworkProviderAsync) {
+            await Location.enableNetworkProviderAsync();
+          }
+        } catch {
+          // ignore if not supported
         }
-      } catch {
-        // ignore if not supported
+
+        positionSub.current = await Location.watchPositionAsync(
+          {
+            accuracy,
+            timeInterval,
+            distanceInterval,
+            mayShowUserSettingsDialog: true,
+          },
+          (loc) => {
+            positionCountRef.current += 1;
+            // Drop very inaccurate points
+            if (loc.coords.accuracy && loc.coords.accuracy > 40) return;
+            const prev = lastCoordRef.current;
+            const next = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            };
+            // Light smoothing to reduce jitter/offset
+            const smoothed = prev
+              ? {
+                  latitude: prev.latitude + (next.latitude - prev.latitude) * 0.25,
+                  longitude: prev.longitude + (next.longitude - prev.longitude) * 0.25,
+                }
+              : next;
+            lastCoordRef.current = smoothed;
+            setState((prev) => ({
+              ...prev,
+              coords: smoothed,
+            }));
+          }
+        );
+
+        if (typeof Location.watchHeadingAsync === 'function') {
+          headingSub.current = await Location.watchHeadingAsync((event) => {
+            headingCountRef.current += 1;
+            const rawHeading = Number.isFinite(event.trueHeading)
+              ? event.trueHeading
+              : Number.isFinite(event.magHeading)
+              ? event.magHeading
+              : null;
+            if (rawHeading === null || rawHeading < 0) return;
+
+            const prev = headingRef.current;
+            const smoothed = smoothHeading(prev, rawHeading, 0.15); // stronger smoothing for less shake
+            headingRef.current = smoothed;
+
+            const now = Date.now();
+            const applied = appliedHeadingRef.current;
+            const appliedDelta = Math.abs(((smoothed - applied + 540) % 360) - 180);
+
+            // Drop tiny jitters and rate-limit updates to avoid visual shake
+            if (appliedDelta < 2.5 && now - lastUpdateRef.current < 650) {
+              return;
+            }
+
+            lastUpdateRef.current = now;
+            appliedHeadingRef.current = smoothed;
+            setState((p) => ({ ...p, heading: smoothed }));
+          });
+        }
+      } catch (e) {
+        console.log('Live location failed to initialize', e);
       }
-
-      positionSub.current = await Location.watchPositionAsync(
-        {
-          accuracy,
-          timeInterval,
-          distanceInterval,
-          mayShowUserSettingsDialog: true,
-        },
-        (loc) => {
-          positionCountRef.current += 1;
-          // Drop very inaccurate points
-          if (loc.coords.accuracy && loc.coords.accuracy > 40) return;
-          const prev = lastCoordRef.current;
-          const next = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          };
-          // Light smoothing to reduce jitter/offset
-          const smoothed = prev
-            ? {
-                latitude: prev.latitude + (next.latitude - prev.latitude) * 0.25,
-                longitude: prev.longitude + (next.longitude - prev.longitude) * 0.25,
-              }
-            : next;
-          lastCoordRef.current = smoothed;
-          setState((prev) => ({
-            ...prev,
-            coords: smoothed,
-          }));
-        }
-      );
-
-      headingSub.current = await Location.watchHeadingAsync((event) => {
-        headingCountRef.current += 1;
-        const rawHeading = Number.isFinite(event.trueHeading)
-          ? event.trueHeading
-          : Number.isFinite(event.magHeading)
-          ? event.magHeading
-          : null;
-        if (rawHeading === null || rawHeading < 0) return;
-
-        const prev = headingRef.current;
-        const smoothed = smoothHeading(prev, rawHeading, 0.15); // stronger smoothing for less shake
-        headingRef.current = smoothed;
-
-        const now = Date.now();
-        const applied = appliedHeadingRef.current;
-        const appliedDelta = Math.abs(((smoothed - applied + 540) % 360) - 180);
-
-        // Drop tiny jitters and rate-limit updates to avoid visual shake
-        if (appliedDelta < 2.5 && now - lastUpdateRef.current < 650) {
-          return;
-        }
-
-        lastUpdateRef.current = now;
-        appliedHeadingRef.current = smoothed;
-        setState((p) => ({ ...p, heading: smoothed }));
-      });
     })();
 
     return () => {
