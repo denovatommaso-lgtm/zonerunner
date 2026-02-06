@@ -254,6 +254,9 @@ export default function TerritoryMapScreen() {
   const [currentRoute, setCurrentRoute] = useState<LatLng[]>([]);
   const [runActive, setRunActive] = useState(false);
   const [showUserLocation, setShowUserLocation] = useState(false);
+  const scrollYRef = useRef(0);
+  const pullStartYRef = useRef<number | null>(null);
+  const pullTriggeredRef = useRef(false);
 
 const [initialRegion, setInitialRegion] = useState<Region | null>(null);
 const [territoryColor, setTerritoryColor] = useState<string>('#1e90ff');
@@ -1111,6 +1114,32 @@ const {
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 24 }}
+        onScroll={(evt) => {
+          if (Platform.OS !== 'web') return;
+          const y = (evt.nativeEvent as any)?.contentOffset?.y ?? 0;
+          scrollYRef.current = y;
+        }}
+        onTouchStart={(evt) => {
+          if (Platform.OS !== 'web') return;
+          if (scrollYRef.current <= 0) {
+            pullStartYRef.current = evt.nativeEvent?.pageY ?? null;
+            pullTriggeredRef.current = false;
+          } else {
+            pullStartYRef.current = null;
+          }
+        }}
+        onTouchMove={(evt) => {
+          if (Platform.OS !== 'web') return;
+          if (pullTriggeredRef.current) return;
+          const startY = pullStartYRef.current;
+          if (startY == null) return;
+          const currentY = evt.nativeEvent?.pageY ?? startY;
+          const delta = currentY - startY;
+          if (delta > 80) {
+            pullTriggeredRef.current = true;
+            if (typeof window !== 'undefined') window.location.reload();
+          }
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1241,6 +1270,26 @@ const {
             <Ionicons name="locate-outline" size={16} color="#e5e7eb" />
           </Pressable>
         </View>
+        {/* Mode selector bottom-left */}
+        <View style={styles.modeMenuOverlay}>
+          <View style={styles.modeMenu}>
+            {(['personal', 'group', 'community'] as const).map((m) => {
+              const active = mapMode === m;
+              const label = m === 'personal' ? 'Personal' : m === 'group' ? 'Group' : 'Community';
+              return (
+                <Pressable
+                  key={m}
+                  onPress={() => setMapMode(m)}
+                  style={[styles.modeMenuItem, active && styles.modeMenuItemActive]}
+                >
+                  <Text style={[styles.modeMenuText, active && styles.modeMenuTextActive]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
         {mapMode === 'community' && isCommunityBusy && (
           <View style={styles.communityOverlay}>
             <ActivityIndicator size="small" color="#e5e7eb" style={{ marginBottom: 8 }} />
@@ -1360,25 +1409,6 @@ const {
       />
 
       </ScrollView>
-      <View style={[styles.modeMenuOverlay, { bottom: tabBarHeight + 6 }]}>
-        <View style={styles.modeMenu}>
-          {(['personal', 'group', 'community'] as const).map((m) => {
-            const active = mapMode === m;
-            const label = m === 'personal' ? 'Personal' : m === 'group' ? 'Group' : 'Community';
-            return (
-              <Pressable
-                key={m}
-                onPress={() => setMapMode(m)}
-                style={[styles.modeMenuItem, active && styles.modeMenuItemActive]}
-              >
-                <Text style={[styles.modeMenuText, active && styles.modeMenuTextActive]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
     </SafeAreaView>
   );
 }
@@ -1452,13 +1482,12 @@ const styles = StyleSheet.create({
   },
   modeMenuOverlay: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 24,
+    left: 12,
+    bottom: 12,
     zIndex: 11,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   modeMenu: {
     position: 'relative',
