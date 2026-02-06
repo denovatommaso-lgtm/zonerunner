@@ -66,6 +66,11 @@ const COMMUNITY_FALLBACK_REGION: Region = {
   longitudeDelta: 0.2,
 };
 
+const BUILD_STAMP =
+  process.env.EXPO_PUBLIC_BUILD_STAMP ||
+  process.env.EXPO_PUBLIC_GIT_SHA ||
+  (typeof __DEV__ !== 'undefined' && __DEV__ ? 'dev' : 'unknown');
+
 function regionFromLocation(coords: { latitude: number; longitude: number } | null): Region {
   if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
     return {
@@ -1159,6 +1164,7 @@ const {
                 ? 'Community territories'
                 : 'See all captured territories'}
           </Text>
+          <Text style={styles.buildStamp}>{`Build: ${BUILD_STAMP}`}</Text>
         </View>
         <View style={styles.modeSwitchRow} />
         <View style={styles.headerOverlayRight}>
@@ -1574,6 +1580,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#9ca3af',
     textAlign: 'left',
+  },
+  buildStamp: {
+    marginTop: 6,
+    fontSize: 11,
+    color: '#64748b',
+    textAlign: 'left',
+    letterSpacing: 0.2,
   },
   mapCard: {
     marginHorizontal: 16,

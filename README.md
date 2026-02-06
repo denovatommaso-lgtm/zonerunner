@@ -2,6 +2,14 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Web App
+
+Production web app (Firebase Hosting):
+
+```text
+https://zonerunner-e6cd8.web.app
+```
+
 ## Get started
 
 1. Install dependencies

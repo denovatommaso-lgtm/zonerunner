@@ -5,7 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ModeProvider } from '../lib/modeContext';
 import { useGoogleAuth } from '../lib/auth';
-import { ActivityIndicator, Platform, View } from 'react-native';
+import { ActivityIndicator, Platform, View, Text, StyleSheet } from 'react-native';
 import { useWatchRunIngestor } from '../hooks/useWatchRunIngestor';
 import { usePendingRunSync } from '../hooks/usePendingRunSync';
 import { useRankingTracker } from '../hooks/useRankingTracker';
@@ -170,16 +170,41 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ModeProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            {/* Root index redirects into the tabs Home screen */}
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-            {/* Main tab navigator */}
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            {/* Auth flow */}
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          </Stack>
+          <View style={styles.appRoot}>
+            <Stack screenOptions={{ headerShown: false }}>
+              {/* Root index redirects into the tabs Home screen */}
+              <Stack.Screen name="index" options={{ headerShown: false }} />
+              {/* Main tab navigator */}
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              {/* Auth flow */}
+              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            </Stack>
+            <View pointerEvents="none" style={styles.buildStampWrap}>
+              <Text style={styles.buildStampText}>{`Build ${process.env.EXPO_PUBLIC_BUILD_NUMBER ?? '0'}`}</Text>
+            </View>
+          </View>
         </ModeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+  },
+  buildStampWrap: {
+    position: 'absolute',
+    right: 10,
+    bottom: 8,
+    backgroundColor: 'rgba(2,6,23,0.55)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  buildStampText: {
+    color: '#94a3b8',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+});
