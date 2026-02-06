@@ -4,6 +4,13 @@
     "strict": true,
     "jsx": "react-jsx",
     "esModuleInterop": true,
+    "moduleSuffixes": [
+      ".native",
+      ".ios",
+      ".android",
+      ".web",
+      ""
+    ],
     "paths": {
       "@/*": [
         "./*"

@@ -41,6 +41,7 @@ import {
   hexToRgba,
   polygonFeature,
   regionToCenterZoom,
+  type Feature,
   type LatLng,
 } from '../../lib/maps/geojson';
 import TerritoryMap from '../../components/maps/TerritoryMap';
@@ -744,7 +745,7 @@ const {
   }));
 
   const territoryFeatures = useMemo(() => {
-    const features = [];
+    const features: Feature[] = [];
     if (mapMode !== 'community' && territoryRuns.length > 0) {
       const rebuilt = rebuildTerritoriesFromRuns(territoryRuns as any);
       rebuilt.forEach((terr, ownerId) => {
