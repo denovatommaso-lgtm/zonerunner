@@ -15,6 +15,26 @@ type TerritoryState = {
   communityHasEverLoaded?: boolean;
 };
 
+function toMillis(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function getRunTimestampMs(run: any): number {
+  return toMillis(
+    run?.endedAtMs ??
+      run?.endedAt ??
+      run?.createdAtMs ??
+      run?.createdAt ??
+      run?.startedAtMs ??
+      run?.startedAt
+  );
+}
+
 const cache = new Map<TerritoryContextKey, Promise<TerritoryState>>();
 const listeners = new Map<TerritoryContextKey, Set<() => void>>();
 let communityForceRefresh = false;
@@ -205,7 +225,7 @@ async function buildTerritoryState(key: TerritoryContextKey): Promise<TerritoryS
         userId: isGroup ? r.groupId : r.userId,
         route: r.route,
         startedAt: r.startedAt,
-        createdAt: r.createdAt,
+        createdAt: getRunTimestampMs(r),
       }))
     );
 
