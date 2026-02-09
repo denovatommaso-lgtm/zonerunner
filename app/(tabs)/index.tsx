@@ -1207,7 +1207,7 @@ const {
   ]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.content}>
       {/* Header */}
       <View style={styles.headerRow}>
@@ -1276,7 +1276,7 @@ const {
           </View>
         )}
         {/* Area pill overlay */}
-        <View style={styles.areaOverlay}>
+        <View style={[styles.areaOverlay, { bottom: tabBarHeight + 84 }]}>
           <Ionicons name="flag-outline" size={14} color="#e5e7eb" style={{ marginRight: 6 }} />
           <View>
             <Text style={styles.areaOverlayLabel}>Area captured</Text>
@@ -1333,7 +1333,7 @@ const {
           </Pressable>
         </View>
         {/* Mode selector bottom-left */}
-        <View style={styles.modeMenuOverlay}>
+        <View style={[styles.modeMenuOverlay, { bottom: tabBarHeight + 20 }]}>
           <View style={styles.modeMenu}>
             {(['personal', 'group', 'community'] as const).map((m) => {
               const active = mapMode === m;
@@ -1390,7 +1390,7 @@ const {
         </View>
       )}
       {/* Primary action overlay */}
-      <View style={styles.mapActionBar}>
+      <View style={[styles.mapActionBar, { bottom: tabBarHeight + 12 }]}>
         <Pressable
           onPress={handlePrimaryButtonPress}
           style={({ pressed }) => [
@@ -1535,7 +1535,6 @@ const styles = StyleSheet.create({
   modeMenuOverlay: {
     position: 'absolute',
     left: 12,
-    bottom: 12,
     zIndex: 11,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1644,7 +1643,6 @@ const styles = StyleSheet.create({
   },
   areaOverlay: {
     position: 'absolute',
-    bottom: 16,
     left: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1709,7 +1707,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 20,
     zIndex: 12,
   },
   bigButton: {

@@ -7,9 +7,10 @@ import TabIcon from '@/components/common/TabIcon';
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const baseHeight = Platform.OS === 'ios' ? 56 : 52;
-  const barHeight = baseHeight;
-  const barPaddingBottom = 0;
-  const barPaddingTop = 8;
+  const bottomInset = Platform.OS === 'web' ? Math.max(8, insets.bottom) : insets.bottom;
+  const barHeight = baseHeight + bottomInset;
+  const barPaddingBottom = bottomInset;
+  const barPaddingTop = 6;
 
   return (
     <Tabs
@@ -20,11 +21,12 @@ export default function TabLayout() {
         lazy: true,
         tabBarShowLabel: true,
         tabBarLabelPosition: 'below-icon',
-        tabBarSafeAreaInsets: { bottom: 0 },
+        tabBarHideOnKeyboard: true,
+        sceneStyle: Platform.OS === 'web' ? { paddingBottom: barHeight } : undefined,
         tabBarStyle: {
           backgroundColor: '#0a0f1f', // slightly brighter navy for the bottom bar
           borderTopColor: '#151b2a',
-          height: barHeight + (Platform.OS === 'web' ? 6 : 0),
+          height: barHeight,
           paddingBottom: barPaddingBottom,
           paddingTop: barPaddingTop,
           ...(Platform.OS === 'web'
@@ -33,20 +35,22 @@ export default function TabLayout() {
                 left: 0,
                 right: 0,
                 bottom: 0,
+                zIndex: 1000,
               }
             : null),
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          lineHeight: 12,
+          lineHeight: 13,
           marginBottom: 0,
-          paddingBottom: 2,
+          paddingBottom: 1,
         },
         tabBarIconStyle: {
-          marginTop: 0,
+          marginTop: 1,
         },
         tabBarItemStyle: {
           paddingBottom: 0,
+          paddingTop: 0,
         },
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#777',

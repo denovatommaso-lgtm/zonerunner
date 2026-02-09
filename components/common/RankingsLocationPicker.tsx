@@ -15,6 +15,7 @@ import {
   type CountryOption,
   type RegionOption,
 } from '../../lib/rankingLocationData';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type RankingsLocationValue = {
   countryCode?: string;
@@ -38,6 +39,7 @@ export function RankingsLocationPicker({
   helperText,
   variant = 'card',
 }: Props) {
+  const insets = useSafeAreaInsets();
   const [activePicker, setActivePicker] = useState<'country' | 'state' | null>(null);
   const [search, setSearch] = useState('');
 
@@ -122,7 +124,13 @@ export function RankingsLocationPicker({
         onRequestClose={() => setActivePicker(null)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[
+            styles.modalOverlay,
+            {
+              paddingTop: Math.max(16, insets.top + 8),
+              paddingBottom: Math.max(16, insets.bottom + 12),
+            },
+          ]}
           activeOpacity={1}
           onPress={() => setActivePicker(null)}
         >
@@ -222,6 +230,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#111827',
     padding: 16,
+    maxHeight: '88%',
   },
   modalTitle: {
     color: '#e5e7eb',
