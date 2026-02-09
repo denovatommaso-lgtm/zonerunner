@@ -259,8 +259,6 @@ export default function TerritoryMapScreen() {
   const [currentRoute, setCurrentRoute] = useState<LatLng[]>([]);
   const [runActive, setRunActive] = useState(false);
   const [showUserLocation, setShowUserLocation] = useState(false);
-  const scrollYRef = useRef(0);
-  const pullStartYRef = useRef<number | null>(null);
   const pullTriggeredRef = useRef(false);
 
 const [initialRegion, setInitialRegion] = useState<Region | null>(null);
@@ -1122,29 +1120,17 @@ const {
         onScroll={(evt) => {
           if (Platform.OS !== 'web') return;
           const y = (evt.nativeEvent as any)?.contentOffset?.y ?? 0;
-          scrollYRef.current = y;
-        }}
-        onTouchStart={(evt) => {
-          if (Platform.OS !== 'web') return;
-          if (scrollYRef.current <= 0) {
-            pullStartYRef.current = evt.nativeEvent?.pageY ?? null;
+          if (y >= 0) {
             pullTriggeredRef.current = false;
-          } else {
-            pullStartYRef.current = null;
+            return;
           }
-        }}
-        onTouchMove={(evt) => {
-          if (Platform.OS !== 'web') return;
           if (pullTriggeredRef.current) return;
-          const startY = pullStartYRef.current;
-          if (startY == null) return;
-          const currentY = evt.nativeEvent?.pageY ?? startY;
-          const delta = currentY - startY;
-          if (delta > 80) {
+          if (y < -80) {
             pullTriggeredRef.current = true;
             if (typeof window !== 'undefined') window.location.reload();
           }
         }}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
