@@ -266,6 +266,7 @@ const router = useRouter();
 const { mode: appMode, activeGroupId, setActiveGroupId, groups } = useMode();
 const [allGroupCount, setAllGroupCount] = useState<number>(0);
 const MAP_MODE_STORAGE_KEY = 'territoryMapMode';
+const PROFILE_CACHE_KEY = 'zonerunner:profile';
 const [mapMode, setMapMode] = useState<'personal' | 'group' | 'community'>('community');
 const territoryMode: 'personal' | 'group' | 'community' = mapMode;
   const [groupPickerVisible, setGroupPickerVisible] = useState(false);
@@ -278,6 +279,8 @@ const territoryMode: 'personal' | 'group' | 'community' = mapMode;
   const communityEntryInFlightRef = useRef<Promise<void> | null>(null);
   const communityEntryWarnCountRef = useRef(0);
   const communityCameraInitializedRef = useRef(false);
+  const communityFallbackAppliedRef = useRef(false);
+  const nonCommunityCameraInitializedRef = useRef(false);
   const lastKnownUserLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
 const {
   startJoinGroupRunFlow,
@@ -784,6 +787,27 @@ const {
     }
   }, [user?.profile, user?.uid]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(PROFILE_CACHE_KEY);
+        if (!raw || cancelled) return;
+        const parsed = JSON.parse(raw) as { territoryColor?: string };
+        const cachedColor =
+          normalizeTerritoryHex(parsed?.territoryColor) ??
+          findColorById(DEFAULT_TERRITORY_COLOR_ID)?.hex ??
+          '#1e90ff';
+        if (!cancelled) setTerritoryColor(cachedColor);
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
+
   const activeCoords: LatLng[] = currentRoute.map((c) => ({
     latitude: c.latitude,
     longitude: c.longitude,
@@ -995,14 +1019,79 @@ const {
     const prevMode = lastMapModeRef.current;
     lastMapModeRef.current = mapMode;
     if (mapMode !== 'community') {
+      nonCommunityCameraInitializedRef.current = false;
+    }
+    if (mapMode !== 'community') {
       setCommunityEntryRefreshing(false);
       communityCameraInitializedRef.current = false;
+      communityFallbackAppliedRef.current = false;
       return;
     }
     if (prevMode !== 'community') {
+      communityFallbackAppliedRef.current = false;
       void runCommunityEntryRefresh('mode_change');
     }
   }, [mapMode, runCommunityEntryRefresh]);
+
+  useEffect(() => {
+    if (mapMode === 'group') {
+      nonCommunityCameraInitializedRef.current = false;
+    }
+  }, [activeGroupId, mapMode]);
+
+  useEffect(() => {
+    if (mapMode === 'community') return;
+    if (nonCommunityCameraInitializedRef.current) return;
+
+    let coords: LatLng[] = [];
+    if (mapMode === 'group') {
+      const gid = activeGroupId;
+      if (gid) {
+        coords = ownerPolygons
+          .filter((p) => p.ownerId === gid)
+          .flatMap((p) => p.rings)
+          .flat();
+      }
+    } else {
+      const myRings = territoryToMapPolygons(myTerritory);
+      if (myRings.length > 0) {
+        coords = myRings.flat();
+      } else {
+        const ownedRuns = pastRuns
+          .filter((r) => r.userId === user?.uid && Array.isArray(r.route))
+          .sort((a, b) => getRunTimestamp(b) - getRunTimestamp(a));
+        const latestOwned = ownedRuns[0];
+        coords = (latestOwned?.route ?? [])
+          .map((p) => ({ latitude: p.latitude, longitude: p.longitude }))
+          .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+      }
+    }
+
+    if (!coords.length) return;
+    const filtered = coords.filter(
+      (p) =>
+        Number.isFinite(p.latitude) &&
+        Number.isFinite(p.longitude) &&
+        !(p.latitude === 0 && p.longitude === 0)
+    );
+    if (!filtered.length) return;
+
+    if (filtered.length === 1) {
+      const p = filtered[0];
+      animateToRegion(
+        {
+          latitude: p.latitude,
+          longitude: p.longitude,
+          latitudeDelta: 0.004,
+          longitudeDelta: 0.004,
+        },
+        350
+      );
+    } else {
+      fitToCoordinates(filtered, { top: 40, right: 40, bottom: 180, left: 40 }, 350);
+    }
+    nonCommunityCameraInitializedRef.current = true;
+  }, [activeGroupId, animateToRegion, fitToCoordinates, mapMode, myTerritory, ownerPolygons, pastRuns, user?.uid]);
 
   useEffect(() => {
     if (mapMode !== 'community') return;
@@ -1041,6 +1130,8 @@ const {
     const allCoords = normalizeCoords(ownerPolygons.flatMap(({ rings }) => rings.flat()));
     if (allCoords.length && fitToCoords(allCoords)) return;
 
+    if (communityFallbackAppliedRef.current) return;
+    communityFallbackAppliedRef.current = true;
     (async () => {
       let last = lastKnownUserLocationRef.current;
       if (!last) {
@@ -1058,7 +1149,6 @@ const {
       const fallback = regionFromLocation(last);
       setInitialRegion(fallback);
       animateToRegion(fallback, 350);
-      communityCameraInitializedRef.current = true;
     })();
   }, [isCommunityBusy, latestRunRouteCoords, mapMode, ownerPolygons, setInitialRegion, user?.uid]);
 

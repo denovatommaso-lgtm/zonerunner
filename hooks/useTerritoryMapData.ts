@@ -283,7 +283,10 @@ export function useTerritoryMapData(params: {
                 avatarUrl: profile.avatarUrl,
                 territoryColor: profile.territoryColor,
               });
-              const normalized = normalizeTerritoryHex(profile.territoryColor) ?? fallbackColor;
+              const normalized =
+                uid === resolvedUserId
+                  ? normalizeTerritoryHex(territoryColor) ?? FALLBACK_TERRITORY_HEX
+                  : normalizeTerritoryHex(profile.territoryColor) ?? fallbackColor;
               setUserColors((prev) => ({ ...prev, [uid]: normalized }));
             }
           } catch {
@@ -303,7 +306,7 @@ export function useTerritoryMapData(params: {
       });
       console.log('Failed to load runs', e);
     }
-  }, [mode, resolvedGroupId, resolvedUserId]);
+  }, [mode, resolvedGroupId, resolvedUserId, territoryColor]);
 
   useEffect(() => {
     if (mode !== 'community') {
@@ -540,6 +543,10 @@ export function useTerritoryMapData(params: {
 
       // Use cached profiles when available.
       ownerIds.forEach((id) => {
+        if (resolvedUserId && id === resolvedUserId) {
+          nextColors[id] = normalizeTerritoryHex(territoryColor) ?? FALLBACK_TERRITORY_HEX;
+          return;
+        }
         const cached = userProfileCacheRef.current.get(id);
         if (cached?.territoryColor) {
           nextColors[id] = normalizeTerritoryHex(cached.territoryColor) ?? cached.territoryColor;
@@ -547,7 +554,7 @@ export function useTerritoryMapData(params: {
       });
 
       // Fetch profiles for owners without a color yet.
-      const missing = ownerIds.filter((id) => !nextColors[id]);
+      const missing = ownerIds.filter((id) => !nextColors[id] && id !== resolvedUserId);
       for (const uid of missing) {
         try {
           const profile = await loadUserProfile(uid);
@@ -566,14 +573,20 @@ export function useTerritoryMapData(params: {
       }
 
       if (!cancelled && Object.keys(nextColors).length) {
-        setUserColors((prev) => ({ ...prev, ...nextColors }));
+        setUserColors((prev) => {
+          const merged = { ...prev, ...nextColors };
+          if (resolvedUserId) {
+            merged[resolvedUserId] = normalizeTerritoryHex(territoryColor) ?? FALLBACK_TERRITORY_HEX;
+          }
+          return merged;
+        });
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [mode, territories]);
+  }, [mode, resolvedUserId, territories, territoryColor]);
 
   useEffect(() => {
     if (mode !== 'community') return;
@@ -582,11 +595,11 @@ export function useTerritoryMapData(params: {
     setUserColors((prev) => {
       const next = { ...prev };
       ownerIds.forEach((id) => {
-        if (next[id]) return;
         if (resolvedUserId && id === resolvedUserId) {
           next[id] = normalizeTerritoryHex(territoryColor) ?? territoryColor;
           return;
         }
+        if (next[id]) return;
         const cached = userProfileCacheRef.current.get(id);
         if (cached?.territoryColor) {
           next[id] = normalizeTerritoryHex(cached.territoryColor) ?? cached.territoryColor;
