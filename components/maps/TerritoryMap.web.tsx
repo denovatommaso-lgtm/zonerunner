@@ -46,6 +46,8 @@ export default function TerritoryMapWeb({
         zoom={initialCamera.zoom}
         style={styles.map}
         zoomControl={false}
+        minZoom={1}
+        worldCopyJump={true}
         whenReady={onMapReady}
       >
         <TileLayer url={OSM_TILE_URL} attribution={OSM_ATTRIBUTION} />

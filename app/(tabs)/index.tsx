@@ -10,8 +10,6 @@ import {
   Alert,
   Platform,
   Pressable,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -270,8 +268,6 @@ const PROFILE_CACHE_KEY = 'zonerunner:profile';
 const [mapMode, setMapMode] = useState<'personal' | 'group' | 'community'>('community');
 const territoryMode: 'personal' | 'group' | 'community' = mapMode;
   const [groupPickerVisible, setGroupPickerVisible] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const lastRefreshRef = useRef(0);
   const [communityEntryRefreshing, setCommunityEntryRefreshing] = useState(false);
   const COMMUNITY_ENTRY_COOLDOWN_MS = 3000;
   const COMMUNITY_ENTRY_FOCUS_REFRESH_MS = 30000;
@@ -944,24 +940,17 @@ const {
   }, [pastRuns]);
 
   const handleRefreshWithOpts = useCallback(
-    async (opts?: { silent?: boolean }) => {
-      const showSpinner = !opts?.silent;
-      try {
-        if (showSpinner) setRefreshing(true);
-        await ensureLocationReady({ allowActive: false });
-        if (mapMode === 'group') {
-          await countAllGroups().then(setAllGroupCount).catch(() => setAllGroupCount(0));
+    async () => {
+      await ensureLocationReady({ allowActive: false });
+      if (mapMode === 'group') {
+        await countAllGroups().then(setAllGroupCount).catch(() => setAllGroupCount(0));
+      }
+      if (!initialRegion) {
+        const fallback = deriveFallbackRegion();
+        if (fallback) {
+          setInitialRegion(fallback);
+          animateToRegion(fallback, 400);
         }
-        if (!initialRegion) {
-          const fallback = deriveFallbackRegion();
-          if (fallback) {
-            setInitialRegion(fallback);
-            animateToRegion(fallback, 400);
-          }
-        }
-        lastRefreshRef.current = Date.now();
-      } finally {
-        if (showSpinner) setRefreshing(false);
       }
     },
     [
@@ -975,7 +964,7 @@ const {
   );
 
   useEffect(() => {
-    void handleRefreshWithOpts({ silent: true });
+    void handleRefreshWithOpts();
   }, [handleRefreshWithOpts]);
 
   const lastMapModeRef = useRef<'personal' | 'group' | 'community' | null>(null);
@@ -1204,16 +1193,7 @@ const {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 24 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => handleRefreshWithOpts({ silent: false })}
-            tintColor="#e5e7eb"
-          />
-        }
-      >
+      <View style={styles.content}>
       {/* Header */}
       <View style={styles.headerRow}>
         <View style={styles.headerTextBlock}>
@@ -1394,22 +1374,8 @@ const {
           )}
         </View>
       )}
-      </View>
-
-      {/* Legend */}
-      {mapMode === 'group' ? (
-        <View style={styles.legendRow}>
-        </View>
-      ) : mapMode === 'community' ? (
-        <View style={styles.legendRow}>
-        </View>
-      ) : (
-        <View style={styles.legendRow}>
-        </View>
-      )}
-
-      {/* Big primary button */}
-      <View style={styles.buttonBar}>
+      {/* Primary action overlay */}
+      <View style={styles.mapActionBar}>
         <Pressable
           onPress={handlePrimaryButtonPress}
           style={({ pressed }) => [
@@ -1431,6 +1397,7 @@ const {
               : 'Start run'}
           </Text>
         </Pressable>
+      </View>
       </View>
 
 
@@ -1475,7 +1442,7 @@ const {
         onOpenRunDetail={(id) => router.push({ pathname: '/run-detail', params: { id } })}
       />
 
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1484,6 +1451,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#020617',
+  },
+  content: {
+    flex: 1,
   },
   center: {
     flex: 1,
@@ -1650,18 +1620,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   mapCard: {
-    marginHorizontal: 16,
-    borderRadius: 28,
+    flex: 1,
+    marginHorizontal: 0,
+    borderRadius: 0,
     overflow: 'hidden',
     backgroundColor: '#020617',
-    height: 540,
-    borderWidth: 1.5,
-    borderColor: '#111827',
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 8,
+    borderWidth: 0,
   },
   areaOverlay: {
     position: 'absolute',
@@ -1725,6 +1689,13 @@ const styles = StyleSheet.create({
   buttonBar: {
     marginTop: 12,
     marginHorizontal: 16,
+  },
+  mapActionBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 20,
+    zIndex: 12,
   },
   bigButton: {
     borderRadius: 16,
