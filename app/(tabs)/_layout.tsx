@@ -23,22 +23,12 @@ export default function TabLayout() {
         tabBarShowLabel: true,
         tabBarLabelPosition: 'below-icon',
         tabBarHideOnKeyboard: true,
-        tabBarSafeAreaInsets: isWeb ? { bottom: 0 } : undefined,
         tabBarStyle: {
           backgroundColor: '#0a0f1f', // slightly brighter navy for the bottom bar
           borderTopColor: '#151b2a',
           height: barHeight,
           paddingBottom: barPaddingBottom,
           paddingTop: barPaddingTop,
-          ...(isWeb
-            ? {
-                position: 'fixed',
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 1000,
-              }
-            : null),
         },
         tabBarLabelStyle: {
           fontSize: 11,

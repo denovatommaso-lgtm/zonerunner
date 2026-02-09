@@ -54,7 +54,6 @@ export default function RootLayout() {
     if (!('serviceWorker' in navigator)) return;
     if (process.env.NODE_ENV !== 'production') return;
 
-    let isMounted = true;
     let updateInterval: ReturnType<typeof setInterval> | null = null;
 
     const register = async () => {
@@ -63,23 +62,9 @@ export default function RootLayout() {
           updateViaCache: 'none',
         });
 
-        const activateWaiting = () => {
-          if (registration.waiting) {
-            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
-        };
-
-        registration.addEventListener('updatefound', activateWaiting);
-        activateWaiting();
-
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!isMounted) return;
-          window.location.reload();
-        });
-
         updateInterval = setInterval(() => {
           registration.update().catch(() => {});
-        }, 60 * 1000);
+        }, 5 * 60 * 1000);
       } catch {
         // ignore
       }
@@ -95,7 +80,6 @@ export default function RootLayout() {
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      isMounted = false;
       if (updateInterval) clearInterval(updateInterval);
       document.removeEventListener('visibilitychange', onVisible);
     };
@@ -195,12 +179,13 @@ const styles = StyleSheet.create({
   },
   buildStampWrap: {
     position: 'absolute',
-    right: 10,
-    top: 10,
+    left: 10,
+    bottom: 10,
     backgroundColor: 'rgba(2,6,23,0.55)',
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    zIndex: 1001,
   },
   buildStampText: {
     color: '#94a3b8',

@@ -64,8 +64,6 @@ const COMMUNITY_FALLBACK_REGION: Region = {
   longitudeDelta: 0.2,
 };
 
-const BUILD_STAMP = process.env.EXPO_PUBLIC_BUILD_NUMBER ?? '0';
-
 function regionFromLocation(coords: { latitude: number; longitude: number } | null): Region {
   if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
     return {
@@ -1217,7 +1215,6 @@ const {
                 ? 'Community territories'
                 : 'See all captured territories'}
           </Text>
-          <Text style={styles.buildStamp}>{`Build ${BUILD_STAMP}`}</Text>
         </View>
         <View style={styles.modeSwitchRow} />
         <View style={styles.headerOverlayRight}>
@@ -1329,8 +1326,8 @@ const {
             <Ionicons name="locate-outline" size={16} color="#e5e7eb" />
           </Pressable>
         </View>
-        {/* Mode selector bottom-left */}
-        <View style={[styles.modeMenuOverlay, { bottom: tabBarHeight + 84 }]}>
+        {/* Mode selector top-left */}
+        <View style={styles.modeMenuOverlay}>
           <View style={styles.modeMenu}>
             {(['personal', 'group', 'community'] as const).map((m) => {
               const active = mapMode === m;
@@ -1387,7 +1384,7 @@ const {
         </View>
       )}
       {/* Primary action overlay */}
-      <View style={[styles.mapActionBar, { bottom: tabBarHeight + 12 }]}>
+      <View style={[styles.mapActionBar, { bottom: Math.max(tabBarHeight + 8, 16) }]}>
         <Pressable
           onPress={handlePrimaryButtonPress}
           style={({ pressed }) => [
@@ -1531,6 +1528,7 @@ const styles = StyleSheet.create({
   },
   modeMenuOverlay: {
     position: 'absolute',
+    top: 12,
     left: 12,
     zIndex: 11,
     flexDirection: 'row',
@@ -1623,13 +1621,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'left',
   },
-  buildStamp: {
-    marginTop: 6,
-    fontSize: 11,
-    color: '#64748b',
-    textAlign: 'left',
-    letterSpacing: 0.2,
-  },
   mapCard: {
     flex: 1,
     marginHorizontal: 0,
@@ -1640,7 +1631,7 @@ const styles = StyleSheet.create({
   },
   areaOverlay: {
     position: 'absolute',
-    top: 12,
+    top: 64,
     left: 12,
     flexDirection: 'row',
     alignItems: 'center',
