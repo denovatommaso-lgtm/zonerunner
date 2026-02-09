@@ -64,10 +64,7 @@ const COMMUNITY_FALLBACK_REGION: Region = {
   longitudeDelta: 0.2,
 };
 
-const BUILD_STAMP =
-  process.env.EXPO_PUBLIC_BUILD_STAMP ||
-  process.env.EXPO_PUBLIC_GIT_SHA ||
-  (typeof __DEV__ !== 'undefined' && __DEV__ ? 'dev' : 'unknown');
+const BUILD_STAMP = process.env.EXPO_PUBLIC_BUILD_NUMBER ?? '0';
 
 function regionFromLocation(coords: { latitude: number; longitude: number } | null): Region {
   if (coords && Number.isFinite(coords.latitude) && Number.isFinite(coords.longitude)) {
@@ -1220,7 +1217,7 @@ const {
                 ? 'Community territories'
                 : 'See all captured territories'}
           </Text>
-          <Text style={styles.buildStamp}>{`Build: ${BUILD_STAMP}`}</Text>
+          <Text style={styles.buildStamp}>{`Build ${BUILD_STAMP}`}</Text>
         </View>
         <View style={styles.modeSwitchRow} />
         <View style={styles.headerOverlayRight}>
@@ -1276,7 +1273,7 @@ const {
           </View>
         )}
         {/* Area pill overlay */}
-        <View style={[styles.areaOverlay, { bottom: tabBarHeight + 84 }]}>
+        <View style={styles.areaOverlay}>
           <Ionicons name="flag-outline" size={14} color="#e5e7eb" style={{ marginRight: 6 }} />
           <View>
             <Text style={styles.areaOverlayLabel}>Area captured</Text>
@@ -1333,7 +1330,7 @@ const {
           </Pressable>
         </View>
         {/* Mode selector bottom-left */}
-        <View style={[styles.modeMenuOverlay, { bottom: tabBarHeight + 20 }]}>
+        <View style={[styles.modeMenuOverlay, { bottom: tabBarHeight + 84 }]}>
           <View style={styles.modeMenu}>
             {(['personal', 'group', 'community'] as const).map((m) => {
               const active = mapMode === m;
@@ -1643,7 +1640,8 @@ const styles = StyleSheet.create({
   },
   areaOverlay: {
     position: 'absolute',
-    left: 16,
+    top: 12,
+    left: 12,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,

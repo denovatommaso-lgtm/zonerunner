@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   buildStampWrap: {
     position: 'absolute',
     right: 10,
-    bottom: 8,
+    top: 10,
     backgroundColor: 'rgba(2,6,23,0.55)',
     borderRadius: 8,
     paddingHorizontal: 8,

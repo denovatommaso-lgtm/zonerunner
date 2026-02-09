@@ -12,6 +12,7 @@ import {
 import Ionicons from '@/components/common/Ionicons';
 import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useGoogleAuth } from '../../lib/auth';
 import { deleteRun, type RunDoc } from '../../lib/runService';
 import { formatDistance, formatDate } from '../../lib/utils/format';
@@ -21,6 +22,7 @@ import { BackButton } from '../../components/common/BackButton';
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const tabBarHeight = useBottomTabBarHeight();
   const { user } = useGoogleAuth();
   const { runs, loading, reload } = useRunsContext({ mode: 'personal', userId: user?.uid });
   const accentColor = user?.profile?.territoryColor ?? '#1e90ff';
@@ -145,7 +147,7 @@ export default function HistoryScreen() {
           data={sortedRuns}
           keyExtractor={(item) => (item.id ?? '').toString()}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabBarHeight + 12 }]}
         />
       )}
     </SafeAreaView>
