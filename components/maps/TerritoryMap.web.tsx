@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { MapContainer, TileLayer, GeoJSON, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, Polyline, useMapEvents } from 'react-leaflet';
 import type { FeatureCollection } from '../../lib/maps/geojson';
 import { OSM_ATTRIBUTION, OSM_TILE_URL } from '../../lib/maps/osm';
 
@@ -30,10 +30,22 @@ export default function TerritoryMapWeb({
   onMapReady,
 }: Props) {
   const isSSR = typeof window === 'undefined';
+  const [zoomLevel, setZoomLevel] = useState(initialCamera.zoom ?? 3);
   const leafletCenter = useMemo(
     () => [initialRegion.latitude, initialRegion.longitude] as [number, number],
     [initialRegion]
   );
+  const sphereMode = zoomLevel <= 2.2;
+
+  function ZoomListener() {
+    useMapEvents({
+      zoomend: (evt) => {
+        const z = evt.target.getZoom?.();
+        if (typeof z === 'number') setZoomLevel(z);
+      },
+    });
+    return null;
+  }
 
   if (isSSR) {
     return <View style={styles.container} />;
@@ -44,12 +56,13 @@ export default function TerritoryMapWeb({
       <MapContainer
         center={leafletCenter}
         zoom={initialCamera.zoom}
-        style={styles.map}
+        style={StyleSheet.flatten([styles.map, sphereMode ? styles.sphereMap : null])}
         zoomControl={false}
         minZoom={1}
         worldCopyJump={true}
         whenReady={onMapReady}
       >
+        <ZoomListener />
         <TileLayer url={OSM_TILE_URL} attribution={OSM_ATTRIBUTION} />
         {territoryFeatures.features.length > 0 && (
           <GeoJSON
@@ -76,4 +89,19 @@ export default function TerritoryMapWeb({
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
+  sphereMap: {
+    borderRadius: 9999,
+    overflow: 'hidden',
+    width: '92%',
+    height: '92%',
+    marginLeft: '4%',
+    marginTop: '4%',
+    backgroundColor: '#00122a',
+    borderWidth: 2,
+    borderColor: 'rgba(156,205,255,0.45)',
+    shadowColor: '#9ec8ff',
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
+  },
 });

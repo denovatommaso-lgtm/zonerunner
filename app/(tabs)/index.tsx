@@ -249,6 +249,21 @@ function fallbackOwnerColor(ownerId: string): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+function resolveOwnerColor(
+  ownerId: string,
+  userId: string | undefined,
+  territoryColor: string,
+  userColors: Record<string, string>
+): string {
+  if (userId && ownerId === userId) return territoryColor;
+  const fromMap = userColors[ownerId];
+  if (fromMap) {
+    const normalized = normalizeTerritoryHex(fromMap);
+    if (normalized) return normalized;
+  }
+  return fallbackOwnerColor(ownerId);
+}
+
 // MapLibre view is loaded via lib/maplibre.ts to avoid web native module errors.
 
 export default function TerritoryMapScreen() {
@@ -817,7 +832,7 @@ const {
         if (!terr) return;
         const rings = territoryToMapPolygons(terr);
         if (!rings.length) return;
-        const color = userColors[ownerId] ?? fallbackOwnerColor(ownerId);
+        const color = resolveOwnerColor(ownerId, user?.uid, territoryColor, userColors);
         rings.forEach((ring, ringIdx) => {
           if (ring.length < 3) return;
           features.push(
@@ -834,7 +849,7 @@ const {
     } else if (ownerPolygons.length > 0) {
       ownerPolygons.forEach(
         ({ ownerId, rings }: { ownerId: string; rings: LatLng[][] }, idx: number) => {
-          const color = userColors[ownerId] ?? fallbackOwnerColor(ownerId);
+          const color = resolveOwnerColor(ownerId, user?.uid, territoryColor, userColors);
           const ownerType: TerritoryOwnerType = mapMode === 'group' ? 'group' : 'user';
           rings.forEach((ring: LatLng[], ringIdx: number) => {
             if (ring.length < 3) return;
@@ -1158,7 +1173,7 @@ const {
     mapMode === 'group'
       ? activeGroup?.color || territoryColor
       : mapMode === 'community'
-        ? (user?.uid ? userColors[user.uid] : undefined) || '#e5e7eb'
+        ? territoryColor
         : territoryColor;
   const headerCenterLabel =
     mapMode === 'group' ? activeGroup?.name ?? 'Group' : 'Territory';
