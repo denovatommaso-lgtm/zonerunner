@@ -259,7 +259,6 @@ export default function TerritoryMapScreen() {
   const [currentRoute, setCurrentRoute] = useState<LatLng[]>([]);
   const [runActive, setRunActive] = useState(false);
   const [showUserLocation, setShowUserLocation] = useState(false);
-  const pullTriggeredRef = useRef(false);
 
 const [initialRegion, setInitialRegion] = useState<Region | null>(null);
 const [territoryColor, setTerritoryColor] = useState<string>('#1e90ff');
@@ -1117,20 +1116,6 @@ const {
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 24 }}
-        onScroll={(evt) => {
-          if (Platform.OS !== 'web') return;
-          const y = (evt.nativeEvent as any)?.contentOffset?.y ?? 0;
-          if (y >= 0) {
-            pullTriggeredRef.current = false;
-            return;
-          }
-          if (pullTriggeredRef.current) return;
-          if (y < -80) {
-            pullTriggeredRef.current = true;
-            if (typeof window !== 'undefined') window.location.reload();
-          }
-        }}
-        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
