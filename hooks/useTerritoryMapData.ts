@@ -518,12 +518,14 @@ export function useTerritoryMapData(params: {
     }
   }, [mode, recomputeDerived, territoryRuns]);
 
-  // Ensure current user color is available even if profile fetch fails.
+  // Keep the current user's color in sync with Settings (override stale cached color).
   useEffect(() => {
     if (mode !== 'personal') return;
     if (!resolvedUserId) return;
     const normalized = normalizeTerritoryHex(territoryColor) ?? FALLBACK_TERRITORY_HEX;
-    setUserColors((prev) => (prev[resolvedUserId] ? prev : { ...prev, [resolvedUserId]: normalized }));
+    setUserColors((prev) =>
+      prev[resolvedUserId] === normalized ? prev : { ...prev, [resolvedUserId]: normalized }
+    );
   }, [mode, resolvedUserId, territoryColor]);
 
   // Ensure we have a color for every owner (personal mode).
