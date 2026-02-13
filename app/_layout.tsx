@@ -176,6 +176,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   appRoot: {
     flex: 1,
+    backgroundColor: '#0a0f1f',
   },
   buildStampWrap: {
     position: 'absolute',

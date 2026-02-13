@@ -10,8 +10,8 @@ export default function TabLayout() {
   const baseHeight = isWeb ? 60 : Platform.OS === 'ios' ? 56 : 52;
   const bottomInset = isWeb ? 0 : insets.bottom;
   const barHeight = baseHeight + bottomInset;
-  const barPaddingBottom = isWeb ? 0 : Math.max(6, insets.bottom);
-  const barPaddingTop = isWeb ? 4 : 6;
+  const barPaddingBottom = isWeb ? 0 : insets.bottom;
+  const barPaddingTop = 0;
 
   return (
     <Tabs
@@ -43,16 +43,20 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          lineHeight: 12,
+          lineHeight: 13,
+          marginTop: 1,
           marginBottom: 0,
           paddingBottom: 0,
+          includeFontPadding: false,
         },
         tabBarIconStyle: {
           marginTop: 0,
+          marginBottom: 1,
         },
         tabBarItemStyle: {
           paddingBottom: 0,
           paddingTop: 0,
+          justifyContent: 'center',
         },
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#777',
